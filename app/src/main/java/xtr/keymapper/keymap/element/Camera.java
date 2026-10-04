@@ -56,7 +56,7 @@ public class Camera extends KeymapProfileElement {
                 xSensitivity + " " +
                 ySensitivity + " " +
                 (toggle ? 1 : 0) + " " +
-                "KEY_" + triggerKeyCode;
+                triggerKeyCode;
     }
 
 

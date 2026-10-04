@@ -26,8 +26,21 @@ public class ProfileConfigurationTest {
         assertNotNull(profile.mouseAimConfig);
         assertNotNull(profile.rightClick);
         assertNotNull(profile.camera);
+        assertEquals("KEY_ALT", profile.camera.triggerKeyCode);
         assertNotNull(profile.mouseWalk);
         assertEquals("KEY_R", profile.macroIdMap.get("local-id").triggerKey);
+    }
+
+    @Test public void cameraTriggerSurvivesSerializationRoundTrip() {
+        KeymapProfile profile = ProfileConfiguration.parse("CAMERA 100 200 1 1 1 KEY_ALT");
+        assertEquals("KEY_ALT", profile.camera.triggerKeyCode);
+
+        String serialized = profile.camera.getData();
+        assertEquals("KEY_ALT", serialized.split("\\s+")[6]);
+        assertFalse(serialized.contains("KEY_KEY_ALT"));
+
+        KeymapProfile reparsed = ProfileConfiguration.parse(serialized);
+        assertEquals("KEY_ALT", reparsed.camera.triggerKeyCode);
     }
 
     @Test public void acceptsWhitespaceAndLegacyAim() {
