@@ -16,6 +16,35 @@
   </a>
  </p>
 
+## Fork purpose and status
+
+This repository, [rickallauigan/XtMapper](https://github.com/rickallauigan/XtMapper),
+is a fork of [Xtr126/XtMapper](https://github.com/Xtr126/XtMapper) and remains
+based on upstream XtMapper. Credit for the original application belongs to
+Xtr126 and upstream contributors. The upstream resources below are retained
+for reference; upstream release links and screenshots do not establish this
+fork's compatibility.
+
+This fork focuses on Samsung Galaxy S10e Android gaming, small-landscape
+editor usability, and a keyboard/mouse workflow for Mobile Legends: Bang Bang
+(MLBB). Future work includes controller and GameSir G8/G8+ testing, followed
+by Huawei Mate 9 compatibility.
+
+The S10e is the primary development/test device. XtMapper builds successfully
+in our environment, installs and runs on the S10e, and keyboard and mouse are
+usable with our setup. [PR #1](https://github.com/rickallauigan/XtMapper/pull/1)
+fixed editor/settings clipping on small landscape displays and was manually
+tested on-device. Mapping coordinates in `keyContainer` were intentionally
+left unchanged.
+
+Controller/GameSir support, Mate 9 compatibility, a finished MLBB preset, and
+performance or latency improvements versus upstream are not yet validated.
+
+- [Compatibility status](COMPATIBILITY.md)
+- [Galaxy S10e workflow and validation](docs/S10E.md)
+- [Huawei Mate 9 planning](docs/MATE9.md)
+- [Roadmap](docs/ROADMAP.md)
+
 ## About and features
 https://xtr126.github.io/XtMapper-docs/guides/about  
 [Watch video on YouTube](https://www.youtube.com/watch?v=Slcu43xBV3M)  
