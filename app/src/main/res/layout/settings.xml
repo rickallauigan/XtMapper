@@ -1,10 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:orientation="vertical"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:padding="24dp"
-    >
+    android:scrollbars="vertical">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:padding="24dp">
 
         <com.google.android.material.materialswitch.MaterialSwitch
             android:id="@+id/auto_profile_switch"
@@ -47,4 +51,5 @@
             android:layout_height="wrap_content"
             android:valueFrom="0"
             android:valueTo="1" />
-</LinearLayout>
+    </LinearLayout>
+</androidx.core.widget.NestedScrollView>

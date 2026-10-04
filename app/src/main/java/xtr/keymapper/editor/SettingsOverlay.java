@@ -17,6 +17,8 @@ import androidx.annotation.IdRes;
 import androidx.annotation.NonNull;
 import androidx.appcompat.app.AlertDialog;
 import androidx.core.view.MenuItemCompat;
+import androidx.core.view.ViewCompat;
+import androidx.core.view.WindowInsetsCompat;
 
 import com.google.android.material.button.MaterialButton;
 import com.google.android.material.button.MaterialButtonToggleGroup;
@@ -53,8 +55,41 @@ public class SettingsOverlay {
     public ViewGroup createView(@NonNull LayoutInflater inflater) {
         // Inflate the layout for this fragment
         binding = KeymapEditorLayoutBinding.inflate(inflater);
+        applyEditorInsets();
         init();
         return binding.getRoot();
+    }
+
+    private void applyEditorInsets() {
+        // Keep the mapping surface full-size: only editor chrome gets safe-area margins.
+        ViewCompat.setOnApplyWindowInsetsListener(binding.getRoot(), (view, windowInsets) -> {
+            androidx.core.graphics.Insets safeInsets = windowInsets.getInsets(
+                    WindowInsetsCompat.Type.systemBars() | WindowInsetsCompat.Type.displayCutout());
+            View[] panels = {binding.catalog, binding.sliders, binding.misc, binding.shortcuts};
+            for (View panel : panels) {
+                ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) panel.getLayoutParams();
+                params.leftMargin = safeInsets.left;
+                params.rightMargin = safeInsets.right;
+                params.bottomMargin = safeInsets.bottom;
+                panel.setLayoutParams(params);
+            }
+            ViewGroup.MarginLayoutParams toolbarParams =
+                    (ViewGroup.MarginLayoutParams) binding.toggleButtonGroup.getLayoutParams();
+            toolbarParams.leftMargin = safeInsets.left;
+            toolbarParams.rightMargin = safeInsets.right;
+            toolbarParams.topMargin = safeInsets.top;
+            binding.toggleButtonGroup.setLayoutParams(toolbarParams);
+            return windowInsets;
+        });
+        binding.getRoot().addOnAttachStateChangeListener(new View.OnAttachStateChangeListener() {
+            @Override
+            public void onViewAttachedToWindow(View view) {
+                ViewCompat.requestApplyInsets(view);
+            }
+
+            @Override
+            public void onViewDetachedFromWindow(View view) {}
+        });
     }
 
 
