@@ -1,6 +1,8 @@
 package xtr.keymapper.editor
 
 import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.PixelFormat
@@ -15,6 +17,7 @@ import android.view.View.OnLayoutChangeListener
 import android.view.ViewGroup
 import android.view.WindowInsetsController
 import android.view.WindowManager
+import android.widget.Toast
 import android.widget.FrameLayout
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowInsetsCompat
@@ -37,6 +40,7 @@ import xtr.keymapper.editor.component.MouseWalk
 import xtr.keymapper.editor.component.RightClick
 import xtr.keymapper.keymap.KeymapConfig
 import xtr.keymapper.keymap.KeymapProfile
+import xtr.keymapper.keymap.ProfileConfiguration
 import xtr.keymapper.keymap.KeymapProfiles
 import xtr.keymapper.macro.MacroIdUtils
 import xtr.keymapper.macro.MacroStatus
@@ -58,7 +62,7 @@ class EditorUI(
 
     /* The active keymap config and a backup copy */
     private var profile: KeymapProfile? = null
-    private var profileBackup: KeymapProfile? = null
+    private var profileBackup: Set<String>? = null
 
     private var overlayOpen = false
 
@@ -79,7 +83,6 @@ class EditorUI(
     // Compose Dialog Management
     private var importExportComposeView: ComposeView? = null
     private var importExportLifecycle: LifecycleRegistry? = null
-    private var importExportSavedStateController: SavedStateRegistryController? = null
 
     // LifecycleOwner implementation
     private val lifecycleRegistry = LifecycleRegistry(this)
@@ -280,7 +283,7 @@ class EditorUI(
                 showMacroDialog()
             }
             R.id.reset -> {
-                profile = profileBackup
+                profile = KeymapProfiles.getProfile(profileBackup)
                 reloadKeymap()
             }
             R.id.import_export -> {
@@ -387,28 +390,30 @@ class EditorUI(
     }
 
     fun loadKeymapAfterView() {
-        profileBackup = KeymapProfiles(context).getProfile(profileName, false)
+        profileBackup = KeymapProfiles(context).sharedPref.getStringSet(profileName, null)?.toSet()
         keysContainerView.addOnLayoutChangeListener(OnLayoutChangeListener { v: View?, left: Int, top: Int, right: Int, bottom: Int, oldLeft: Int, oldTop: Int, oldRight: Int, oldBottom: Int ->
             if (right != oldRight || left != oldLeft || top != oldTop || bottom != oldBottom) {
                 if (profile != null) {
-                    // Save previous state before wiping
-                    saveKeymap()
+                    // Snapshot edits in memory; resizing must not persist an import.
+                    profile = KeymapProfiles.getProfile(generateConfigString(oldRight - oldLeft, oldBottom - oldTop).lines().toSet())
                     reloadKeymap()
                 }
             }
         })
-        keysContainerView.post(Runnable { this.loadKeymap() })
+        keysContainerView.post {
+            profile = KeymapProfiles.getProfile(profileBackup)
+            reloadKeymap()
+        }
     }
 
     private fun reloadKeymap() {
+        keyInFocus = null
         keysContainerView.removeAllViews()
         editorUiComponents.clear()
         loadKeymap()
     }
 
     private fun loadKeymap() {
-        profile = KeymapProfiles(context).getProfile(profileName, false)
-
         // Scale to current display size
         profile!!.scale(
             keysContainerView.width.toFloat(),
@@ -464,40 +469,58 @@ class EditorUI(
      * Generates a configuration string exactly matching the save format, 
      * used for passing to the Compose Import/Export dialog.
      */
-    private fun generateConfigString(): String {
+    private fun generateConfigString(
+        width: Int = keysContainerView.width,
+        height: Int = keysContainerView.height
+    ): String {
         val linesToWrite = ArrayList<String>()
         editorUiComponents.forEach { linesToWrite.add(it.dataLine) }
 
         MacroIdUtils.getLines(linesToWrite, profile)
+        linesToWrite.add("APPLICATION ${profile!!.packageName}")
+        linesToWrite.add("SCREENSIZE $width $height")
+        if (!profile!!.disabled) linesToWrite.add("ENABLED")
         return linesToWrite.joinToString("\n")
     }
 
-    private fun handleImportAction() {
-        // TODO: Implement import logic (parse string back to KeymapProfile)
-        // Example: KeymapProfile newProfile = new KeymapProfiles(context).parseProfile(configString);
-        // Then call reloadKeymap();
+    private fun handleImportAction(text: String): String? {
+        val imported = try {
+            ProfileConfiguration.parse(text)
+        } catch (error: IllegalArgumentException) {
+            return error.message ?: "Invalid configuration"
+        }
+        profile = imported
+        reloadKeymap()
+        closeImportExportDialog()
+        Toast.makeText(context, "Configuration imported. Save to keep changes.", Toast.LENGTH_LONG).show()
+        return null
     }
 
-    private fun handleExportAction() {
-        // TODO: Implement export logic (e.g., share file, copy to clipboard)
+    private fun handleExportAction(text: String) {
+        context.getSystemService(ClipboardManager::class.java)
+            .setPrimaryClip(ClipData.newPlainText("XtMapper configuration", text))
+        Toast.makeText(context, "Configuration copied to clipboard", Toast.LENGTH_SHORT).show()
     }
 
     private fun showImportExportDialog(configCode: String) {
         if (importExportComposeView != null) return // Prevent duplicate overlays
 
-        // 1. Manually manage lifecycle state for Compose
-        importExportLifecycle = LifecycleRegistry(this)
-        importExportSavedStateController = SavedStateRegistryController.create(this)
-        importExportSavedStateController?.performAttach()
-        importExportSavedStateController?.performRestore(null)
-        importExportLifecycle?.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
-
-        // 2. Instantiate and establish ComposeView context
+        // Each dialog owns a fresh lifecycle and saved-state registry.
+        val dialogOwner = object : LifecycleOwner, SavedStateRegistryOwner {
+            val registry = LifecycleRegistry(this)
+            val controller = SavedStateRegistryController.create(this)
+            override val lifecycle = registry
+            override val savedStateRegistry = controller.savedStateRegistry
+            init {
+                controller.performAttach()
+                controller.performRestore(null)
+                registry.handleLifecycleEvent(Lifecycle.Event.ON_CREATE)
+            }
+        }
+        importExportLifecycle = dialogOwner.registry
         importExportComposeView = ComposeView(context)
-        
-        // Bind the lifecycle providers to the view tree hierarchy
-        importExportComposeView!!.setViewTreeLifecycleOwner(this)
-        importExportComposeView!!.setViewTreeSavedStateRegistryOwner(this)
+        importExportComposeView!!.setViewTreeLifecycleOwner(dialogOwner)
+        importExportComposeView!!.setViewTreeSavedStateRegistryOwner(dialogOwner)
 
         // 3. Attach Compose content (ImportExportDialog from Kotlin)
         importExportComposeView!!.setContent {
@@ -505,8 +528,8 @@ class EditorUI(
             ImportExportDialog(
                 configCode,
                 { closeImportExportDialog() },
-                { handleImportAction() },
-                { handleExportAction() }
+                { handleImportAction(it) },
+                { handleExportAction(it) }
             )
         }
 
@@ -522,7 +545,7 @@ class EditorUI(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else WindowManager.LayoutParams.TYPE_SYSTEM_ALERT,
-                WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
+                WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH,
                 PixelFormat.TRANSLUCENT
             )
             wm.addView(importExportComposeView, params)
@@ -540,14 +563,17 @@ class EditorUI(
         importExportLifecycle?.handleLifecycleEvent(Lifecycle.Event.ON_DESTROY)
 
         try {
-            if (overlayOpen && view.isAttachedToWindow) context.getSystemService(
+            if (context !is Activity && view.isAttachedToWindow) context.getSystemService(
                 WindowManager::class.java
             ).removeView(view)
         } catch (_: IllegalArgumentException) {
             // ignored
         }
 
+        (view.parent as? ViewGroup)?.removeView(view)
+        view.disposeComposition()
         importExportComposeView = null
+        importExportLifecycle = null
     }
 
     private val mCallback: EditorUiComponentCallback = object : EditorUiComponentCallback {
