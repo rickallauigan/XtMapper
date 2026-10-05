@@ -118,7 +118,7 @@ public class KeymapProfiles {
         return keymapProfile;
     }
 
-    public KeymapProfile getProfile(Set<String> lines) {
+    public static KeymapProfile getProfile(Set<String> lines) {
         KeymapProfile profile = new KeymapProfile();
         profile.disabled = true;
         if (lines != null) lines.forEach(line -> {

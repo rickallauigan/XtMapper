@@ -2,8 +2,7 @@ package xtr.keymapper.editor
 
 import android.content.Context
 import android.content.Intent
-import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
+import android.app.Activity
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -11,12 +10,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.foundation.text.selection.SelectionContainer
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.safeDrawingPadding
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.FileDownload
@@ -43,13 +44,14 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun ImportExportDialog(
     code: String,
     onDismissRequest: () -> Unit,
-    onImportClicked: () -> Unit,
-    onExportClicked: () -> Unit,
+    onImportClicked: (String) -> String?,
+    onExportClicked: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
@@ -61,15 +63,19 @@ fun ImportExportDialog(
             type = "text/plain"
         }
         val shareIntent = Intent.createChooser(sendIntent, "Export Configuration")
+        if (context !is Activity) shareIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(shareIntent)
     }
 
-    Dialog(onDismissRequest = onDismissRequest) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
         ImportExportContent(
             code = code,
             onImportClicked = onImportClicked,
             onExportClicked = onExportClicked,
-            onShareClicked = { launchSharesheet(code, context) },
+            onShareClicked = { launchSharesheet(it, context) },
             onDismissRequest = onDismissRequest,
             modifier = modifier
         )
@@ -79,14 +85,17 @@ fun ImportExportDialog(
 @Composable
 fun ImportExportContent(
     code: String,
-    onImportClicked: () -> Unit,
-    onExportClicked: () -> Unit,
-    onShareClicked: () -> Unit,
+    onImportClicked: (String) -> String?,
+    onExportClicked: (String) -> Unit,
+    onShareClicked: (String) -> Unit,
     onDismissRequest: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    var editedCode by remember(code) { mutableStateOf(code) }
+    var importError by remember { mutableStateOf<String?>(null) }
     Card(
-        modifier = modifier.fillMaxWidth(),
+        // Constrain the Card's scroll viewport above the IME and inside system bars.
+        modifier = modifier.safeDrawingPadding().imePadding().fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -95,7 +104,8 @@ fun ImportExportContent(
 
         Column(
             modifier = Modifier
-                .padding(20.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(16.dp)
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -111,7 +121,7 @@ fun ImportExportContent(
                 )
 
                 IconButton(
-                    onClick = onShareClicked
+                    onClick = { onShareClicked(editedCode) }
                 ) {
                     Icon(
                         imageVector = Icons.Default.Share,
@@ -120,32 +130,16 @@ fun ImportExportContent(
                 }
             }
 
-            // --- Code Block Window ---
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(220.dp)
-                    .background(
-                        color = MaterialTheme.colorScheme.surfaceVariant,
-                        shape = RoundedCornerShape(8.dp)
-                    )
-                    .padding(12.dp)
-            ) {
-                val verticalScroll = rememberScrollState()
-                val horizontalScroll = rememberScrollState()
-
-                SelectionContainer {
-                    Text(
-                        text = code,
-                        fontFamily = FontFamily.Monospace,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        softWrap = false, // <-- Prevents forced line wrapping on long config keys
-                        modifier = Modifier
-                            .verticalScroll(verticalScroll)
-                            .horizontalScroll(horizontalScroll)
-                    )
-                }
+            OutlinedTextField(
+                value = editedCode,
+                onValueChange = { editedCode = it; importError = null },
+                label = { Text("Profile configuration") },
+                textStyle = MaterialTheme.typography.bodySmall.copy(fontFamily = FontFamily.Monospace),
+                isError = importError != null,
+                modifier = Modifier.fillMaxWidth().heightIn(min = 100.dp, max = 220.dp)
+            )
+            importError?.let {
+                Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
             }
 
             // --- Main Action Buttons ---
@@ -154,7 +148,7 @@ fun ImportExportContent(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedButton(
-                    onClick = onImportClicked,
+                    onClick = { importError = onImportClicked(editedCode) },
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
@@ -166,7 +160,7 @@ fun ImportExportContent(
                 }
 
                 Button(
-                    onClick = onExportClicked,
+                    onClick = { onExportClicked(editedCode) },
                     modifier = Modifier.weight(1f)
                 ) {
                     Icon(
@@ -184,7 +178,7 @@ fun ImportExportContent(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                TextButton(onClick = onShareClicked) {
+                TextButton(onClick = { onShareClicked(editedCode) }) {
                     Icon(
                         imageVector = Icons.Default.Share,
                         contentDescription = null,
@@ -227,7 +221,7 @@ private fun ImportExportContentPreview() {
         ImportExportContent(
             code = sampleCode,
             onDismissRequest = {},
-            onImportClicked = {},
+            onImportClicked = { null },
             onExportClicked = {},
             onShareClicked = {},
         )
@@ -269,7 +263,7 @@ private fun ImportExportDialogPreview() {
                 ImportExportDialog(
                     code = sampleCode,
                     onDismissRequest = { showDialog = false },
-                    onImportClicked = { showDialog = false },
+                    onImportClicked = { showDialog = false; null },
                     onExportClicked = { showDialog = false }
                 )
             }
