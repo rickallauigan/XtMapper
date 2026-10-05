@@ -203,19 +203,17 @@ public class RemoteService extends IRemoteService.Stub {
 
         input_event = data[1].split("\\s+");
         if (isWaylandClient) return true;
-        if( !currentDevice.equals(evdev) )
-            if (input_event[1].equals("EV_REL")) {
-                System.out.println("add mouse device: " + evdev);
-                if (inputService != null) inputService.openDevice(evdev);
-                currentDevice = evdev;
+        if (input_event.length >= 3 && input_event[1].equals("EV_REL")
+                && (input_event[2].equals("REL_X") || input_event[2].equals("REL_Y"))) {
+            if (inputService == null) currentDevice = evdev;
+            else if (!currentDevice.equals(evdev) || !inputService.isMouseDeviceCurrent(evdev)) {
+                if (inputService.openDevice(evdev) >= 0) currentDevice = evdev;
             }
+        }
         return true;
     }
 
-    private final DeathRecipient mStartServerDeathRecipient = () -> {
-        inputService = null;
-        stopServer();
-    };
+    private final DeathRecipient mStartServerDeathRecipient = this::stopServer;
 
     /**
      * Called by client to start the remote server.
@@ -277,24 +275,29 @@ public class RemoteService extends IRemoteService.Stub {
     }
 
     private void stopServer(boolean exitProcess) {
-        if (inputService != null) try {
-            inputService.getCallback().disablePointer();
-        } catch (RemoteException e) {
-            throw new RuntimeException(e);
-        }
-
-        if (!startedFromShell && exitProcess) {
-            System.exit(0);
-        } else if (inputService != null && !isWaylandClient) {
-            inputService.stopEvents = true;
-            inputService.hideCursor();
-            inputService.stop();
-            inputService.stopMouse();
-            inputService.stopTouchpad();
-            inputService.destroyUinputDev();
-            if (inputService.getCallback() != null) inputService.getCallback().asBinder().unlinkToDeath(mStartServerDeathRecipient, 0);
+        if (inputService != null) {
+            InputService stopping = inputService;
+            stopping.stopEvents = true;
+            stopping.stop();
+            // Client death must not prevent pointer/native cleanup.
+            try {
+                if (stopping.getCallback() != null) stopping.getCallback().disablePointer();
+                stopping.hideCursor();
+            } catch (Exception error) {
+                Log.w(TAG, "Cursor callback unavailable during stop", error);
+            }
+            if (!isWaylandClient) {
+                stopping.stopMouse();
+                stopping.stopTouchpad();
+                stopping.destroyUinputDev();
+            }
+            if (stopping.getCallback() != null) {
+                try { stopping.getCallback().asBinder().unlinkToDeath(mStartServerDeathRecipient, 0); }
+                catch (java.util.NoSuchElementException ignored) { /* client already died */ }
+            }
             inputService = null;
         }
+        if (!startedFromShell && exitProcess) System.exit(0);
     }
     private final DeathRecipient mKeyEventListenerDeathRecipient = () -> mOnKeyEventListener = null;
 

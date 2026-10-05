@@ -1,169 +1,189 @@
 #include <stdbool.h>
 #include <stdlib.h>
 #include <unistd.h>
-
 #include <linux/input.h>
 #include <fcntl.h>
-#include <string.h>
 #include <jni.h>
 #include <pthread.h>
-#include <assert.h>
-#include <arpa/inet.h>
-#include <paths.h>
+#include <errno.h>
+#include <poll.h>
+#include <stdio.h>
+#include <sys/ioctl.h>
+#include <sys/stat.h>
 
+/* One joined reader owns one fd and one pair of JNI references at a time. */
 typedef struct input_service_context {
     JavaVM *javaVM;
     jclass inputServiceClz;
     jobject inputServiceObj;
     pthread_mutex_t lock;
-    int done;
+    pthread_mutex_t lifecycle;
+    pthread_t thread;
+    bool started;
+    bool done;
+    bool finished;
     int mouse_lock;
     int mouse_fd;
 } serviceContext;
-serviceContext g_ctx;
+static serviceContext g_ctx;
 
-/*
- * processing one time initialization:
- *     Cache the javaVM into our context
- * Note:
- *     All resources allocated here are never released by application
- *     we rely on system to free all global refs when it goes away;
- *     the pairing function JNI_OnUnload() never gets called at all.
- */
-JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM* vm, void* reserved) {
-    setlinebuf(stdout);
-    JNIEnv* env;
-    memset(&g_ctx, 0, sizeof(g_ctx));
-
+JNIEXPORT jint JNICALL JNI_OnLoad(JavaVM *vm, void *reserved) {
+    (void) reserved;
     g_ctx.javaVM = vm;
-    if ((*vm)->GetEnv(vm, (void**)&env, JNI_VERSION_1_6) != JNI_OK) {
-        return JNI_ERR; // JNI version not supported.
-    }
-
-    g_ctx.done = 0;
-    g_ctx.inputServiceObj = NULL;
-    return  JNI_VERSION_1_6;
+    g_ctx.mouse_fd = -1;
+    pthread_mutex_init(&g_ctx.lock, NULL);
+    pthread_mutex_init(&g_ctx.lifecycle, NULL);
+    return JNI_VERSION_1_6;
 }
 
-/*
- * Main working thread function. From a pthread,
- *     calling back to InputService::updateTimer() to send mouse events
- */
-void* send_mouse_events(void* context) {
-    serviceContext *pctx = (serviceContext *) context;
-    JavaVM *javaVM = pctx->javaVM;
-    JNIEnv *env;
-    jint res = (*javaVM)->GetEnv(javaVM, (void **)&env, JNI_VERSION_1_6);
-    if (res != JNI_OK) {
-        res = (*javaVM)->AttachCurrentThread(javaVM, &env, NULL);
-        if (JNI_OK != res) {
-            return NULL;
-        }
+static bool is_mouse_event(const struct input_event *event) {
+    if (event->type == EV_REL)
+        return event->code == REL_X || event->code == REL_Y || event->code == REL_WHEEL;
+    if (event->type != EV_KEY || event->value < 0 || event->value > 1) return false;
+    return event->code == BTN_MOUSE || event->code == BTN_RIGHT || event->code == BTN_MIDDLE
+        || event->code == BTN_EXTRA || event->code == BTN_SIDE;
+}
+
+static void *send_mouse_events(void *context) {
+    serviceContext *ctx = context;
+    JNIEnv *env = NULL;
+    if ((*ctx->javaVM)->AttachCurrentThread(ctx->javaVM, (void **) &env, NULL) != JNI_OK) {
+        close(ctx->mouse_fd);
+        pthread_mutex_lock(&ctx->lock);
+        ctx->finished = true;
+        pthread_mutex_unlock(&ctx->lock);
+        return NULL;
     }
-    // get inputService sendMouseEvent function
-    jmethodID mouseEvent = (*env)->GetMethodID(env, pctx->inputServiceClz, "sendMouseEvent", "(II)V");
-
-    int mouse_fd = pctx->mouse_fd;
-    int mouse_lock = 1;
-    ioctl(mouse_fd, EVIOCGRAB, mouse_lock);
-
-    struct input_event ie;
-    while (read(mouse_fd, &ie, sizeof(struct input_event))) {
-        pthread_mutex_lock(&pctx->lock);
-        int done = pctx->done;
-        if (pctx->done) {
-            pctx->done = 0;
+    jmethodID callback = (*env)->GetMethodID(env, ctx->inputServiceClz, "sendMouseEvent", "(II)V");
+    int fd = ctx->mouse_fd;
+    int applied_lock = -1;
+    struct pollfd poll_fd = {.fd = fd, .events = POLLIN};
+    while (callback != NULL) {
+        pthread_mutex_lock(&ctx->lock);
+        bool done = ctx->done;
+        int requested_lock = ctx->mouse_lock;
+        pthread_mutex_unlock(&ctx->lock);
+        if (done) break;
+        if (requested_lock != applied_lock) {
+            if (ioctl(fd, EVIOCGRAB, requested_lock) < 0) break;
+            applied_lock = requested_lock;
         }
-
-        if (pctx->mouse_lock != mouse_lock) {
-            mouse_lock = pctx->mouse_lock;
-            ioctl(mouse_fd, EVIOCGRAB, mouse_lock);
-        }
-        pthread_mutex_unlock(&pctx->lock);
-        if (done) {
-            break;
-        }
-
-        switch (ie.code) {
-            case REL_X :
-            case REL_Y :
-            case REL_WHEEL :
-            case BTN_MOUSE :
-            case BTN_RIGHT :
-            case BTN_MIDDLE :
-            case BTN_EXTRA :
-            case BTN_SIDE :
-                if (mouse_lock) (*env)->CallVoidMethod(env, pctx->inputServiceObj, mouseEvent, ie.code, ie.value);
+        // Bounded poll makes stop independent of the next physical mouse event.
+        int ready = poll(&poll_fd, 1, 50);
+        if (ready < 0) { if (errno == EINTR) continue; break; }
+        if (ready == 0) continue;
+        if (poll_fd.revents & (POLLERR | POLLHUP | POLLNVAL)) break;
+        struct input_event event;
+        ssize_t count = read(fd, &event, sizeof(event));
+        if (count < 0 && (errno == EINTR || errno == EAGAIN)) continue;
+        if (count != sizeof(event)) break; // disconnect/EOF never replays stale data
+        if (requested_lock && is_mouse_event(&event)) {
+            (*env)->CallVoidMethod(env, ctx->inputServiceObj, callback, event.code, event.value);
+            if ((*env)->ExceptionCheck(env)) {
+                (*env)->ExceptionDescribe(env);
+                (*env)->ExceptionClear(env);
                 break;
+            }
         }
     }
-    close(mouse_fd);
-    return context;
-}
-
-
-void startMouseThread(JNIEnv *env, jobject thiz) {
-
-    pthread_t threadInfo_;
-    pthread_attr_t threadAttr_;
-
-    pthread_attr_init(&threadAttr_);
-    pthread_attr_setdetachstate(&threadAttr_, PTHREAD_CREATE_DETACHED);
-
-    jclass clz = (*env)->GetObjectClass(env, thiz);
-    g_ctx.inputServiceClz = (*env)->NewGlobalRef(env, clz);
-    g_ctx.inputServiceObj = (*env)->NewGlobalRef(env, thiz);
-
-    int result = pthread_create(&threadInfo_, &threadAttr_, send_mouse_events, &g_ctx);
-    assert(result == 0);
-    pthread_attr_destroy(&threadAttr_);
-    (void) result;
-}
-
-JNIEXPORT jint JNICALL
-Java_xtr_keymapper_server_InputService_openDevice(JNIEnv *env, jobject thiz, jstring device) {
-    const char *evdev = (*env)->GetStringUTFChars(env, device, NULL);
-    
-    if ((g_ctx.mouse_fd = open(evdev, O_RDONLY)) == -1) {
-        perror("opening device");
-    } else {
-        startMouseThread(env, thiz);
+    pthread_mutex_lock(&ctx->lock);
+    bool disconnected = !ctx->done;
+    pthread_mutex_unlock(&ctx->lock);
+    // Internal cancellation signal: a lost mouse must release its mapped touches.
+    if (disconnected && callback != NULL) {
+        (*env)->CallVoidMethod(env, ctx->inputServiceObj, callback, -1, 0);
+        if ((*env)->ExceptionCheck(env)) (*env)->ExceptionClear(env);
     }
-    (*env)->ReleaseStringUTFChars(env, device, evdev);
-    return g_ctx.mouse_fd;
+    if (applied_lock == 1) ioctl(fd, EVIOCGRAB, 0);
+    close(fd);
+    pthread_mutex_lock(&ctx->lock);
+    ctx->finished = true;
+    pthread_mutex_unlock(&ctx->lock);
+    (*ctx->javaVM)->DetachCurrentThread(ctx->javaVM);
+    return NULL;
 }
 
-/*
- * Interface to Java side to stop:
- */
-JNIEXPORT void JNICALL
-Java_xtr_keymapper_server_InputService_stopMouse(JNIEnv *env, jobject thiz) {
+/* Called with lifecycle locked. Thread alone closes its fd; join precedes reference deletion. */
+static void stop_reader(JNIEnv *env) {
+    if (!g_ctx.started) return;
     pthread_mutex_lock(&g_ctx.lock);
-    g_ctx.done = 1;
+    g_ctx.done = true;
     pthread_mutex_unlock(&g_ctx.lock);
-
-    // waiting for mouse read thread to flip the done flag
-    struct timespec sleepTime;
-    memset(&sleepTime, 0, sizeof(sleepTime));
-    sleepTime.tv_nsec = 100000000;
-    while (g_ctx.done) {
-        nanosleep(&sleepTime, NULL);
-    }
-
-    // release object we allocated
+    pthread_join(g_ctx.thread, NULL);
     (*env)->DeleteGlobalRef(env, g_ctx.inputServiceClz);
     (*env)->DeleteGlobalRef(env, g_ctx.inputServiceObj);
-    g_ctx.inputServiceObj = NULL;
     g_ctx.inputServiceClz = NULL;
-    }
+    g_ctx.inputServiceObj = NULL;
+    g_ctx.mouse_fd = -1;
+    g_ctx.started = false;
+}
 
-JNIEXPORT void JNICALL
-Java_xtr_keymapper_server_InputService_setMouseLock(JNIEnv *env, jobject thiz, jboolean lock) {
-    pthread_mutex_lock(&g_ctx.lock);
-    if (lock == JNI_TRUE) {
-        g_ctx.mouse_lock = 1;
-    } else {
-        g_ctx.mouse_lock = 0;
+JNIEXPORT jint JNICALL Java_xtr_keymapper_server_InputService_openDevice(JNIEnv *env, jobject thiz, jstring device) {
+    pthread_mutex_lock(&g_ctx.lifecycle);
+    const char *path = (*env)->GetStringUTFChars(env, device, NULL);
+    int fd = open(path, O_RDONLY | O_NONBLOCK | O_CLOEXEC);
+    (*env)->ReleaseStringUTFChars(env, device, path);
+    if (fd >= 0) {
+        unsigned long key_bits[(KEY_MAX + 8 * sizeof(unsigned long)) / (8 * sizeof(unsigned long))] = {0};
+        unsigned long rel_bits = 0;
+        if (ioctl(fd, EVIOCGBIT(EV_KEY, sizeof(key_bits)), key_bits) < 0
+                || ioctl(fd, EVIOCGBIT(EV_REL, sizeof(rel_bits)), &rel_bits) < 0
+                || !(key_bits[BTN_MOUSE / (8 * sizeof(unsigned long))] & (1UL << (BTN_MOUSE % (8 * sizeof(unsigned long)))))
+                || !(rel_bits & (1UL << REL_X)) || !(rel_bits & (1UL << REL_Y))) {
+            close(fd); fd = -1;
+        }
     }
+    if (fd >= 0) {
+        // Reject non-mouse probes before replacing the working reader.
+        stop_reader(env);
+        jclass clz = (*env)->GetObjectClass(env, thiz);
+        g_ctx.inputServiceClz = (*env)->NewGlobalRef(env, clz);
+        (*env)->DeleteLocalRef(env, clz);
+        g_ctx.inputServiceObj = (*env)->NewGlobalRef(env, thiz);
+        g_ctx.mouse_fd = fd;
+        pthread_mutex_lock(&g_ctx.lock);
+        g_ctx.done = false;
+        g_ctx.finished = false;
+        pthread_mutex_unlock(&g_ctx.lock);
+        int error = pthread_create(&g_ctx.thread, NULL, send_mouse_events, &g_ctx);
+        if (error == 0) g_ctx.started = true;
+        else {
+            close(fd);
+            (*env)->DeleteGlobalRef(env, g_ctx.inputServiceClz);
+            (*env)->DeleteGlobalRef(env, g_ctx.inputServiceObj);
+            g_ctx.inputServiceClz = NULL; g_ctx.inputServiceObj = NULL; g_ctx.mouse_fd = -1;
+            fd = -1;
+        }
+    }
+    pthread_mutex_unlock(&g_ctx.lifecycle);
+    return fd;
+}
+
+JNIEXPORT void JNICALL Java_xtr_keymapper_server_InputService_stopMouse(JNIEnv *env, jobject thiz) {
+    (void) thiz;
+    pthread_mutex_lock(&g_ctx.lifecycle);
+    stop_reader(env);
+    pthread_mutex_unlock(&g_ctx.lifecycle);
+}
+
+JNIEXPORT void JNICALL Java_xtr_keymapper_server_InputService_setMouseLock(JNIEnv *env, jobject thiz, jboolean lock) {
+    (void) env; (void) thiz;
+    pthread_mutex_lock(&g_ctx.lock);
+    g_ctx.mouse_lock = lock == JNI_TRUE;
     pthread_mutex_unlock(&g_ctx.lock);
+}
+
+JNIEXPORT jboolean JNICALL Java_xtr_keymapper_server_InputService_isMouseDeviceCurrent(JNIEnv *env, jobject thiz, jstring device) {
+    (void) thiz;
+    pthread_mutex_lock(&g_ctx.lifecycle);
+    pthread_mutex_lock(&g_ctx.lock);
+    bool alive = g_ctx.started && !g_ctx.finished;
+    pthread_mutex_unlock(&g_ctx.lock);
+    const char *path = (*env)->GetStringUTFChars(env, device, NULL);
+    struct stat opened, current;
+    bool matches = alive && fstat(g_ctx.mouse_fd, &opened) == 0 && stat(path, &current) == 0
+            && opened.st_dev == current.st_dev && opened.st_ino == current.st_ino;
+    (*env)->ReleaseStringUTFChars(env, device, path);
+    pthread_mutex_unlock(&g_ctx.lifecycle);
+    return matches ? JNI_TRUE : JNI_FALSE;
 }

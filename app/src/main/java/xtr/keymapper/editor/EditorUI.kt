@@ -426,6 +426,8 @@ class EditorUI(
         val editorUiComponentFactory = editorUiComponents.newFactory(mCallback, context)
 
         editorUiComponentFactory.addKeys(profile!!.keys)
+        profile!!.aimKeys.forEach { editorUiComponents.add(xtr.keymapper.editor.component.AimKey(mCallback, context, it)) }
+        profile!!.leftClick?.let { editorUiComponents.add(xtr.keymapper.editor.component.LeftClick(mCallback, context, it)) }
         editorUiComponentFactory.addSwipeKeys(profile!!.swipeKeys)
         editorUiComponentFactory.addDpads(profile!!.dpadArray)
 

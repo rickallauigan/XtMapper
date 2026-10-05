@@ -59,12 +59,6 @@ public class KeyEventHandler {
         }
 
 
-        // Correction of x and y deviation from center
-        for (Key key: profile.keys) {
-            key.x += key.offset;
-            key.y += key.offset;
-        }
-
         swipeKeyHandlers = new ArrayList<>();
         for (SwipeKey key : profile.swipeKeys) {
             swipeKeyHandlers.add(new SwipeKeyHandler(key));
@@ -72,6 +66,8 @@ public class KeyEventHandler {
     }
 
     public void stop() {
+        if (dpadHandlers != null) for (DpadHandler handler : dpadHandlers) if (handler != null) handler.stop();
+        if (eventHandler != null) eventHandler.removeCallbacksAndMessages(null);
         dpadHandlers = null;
         swipeKeyHandlers = null;
         if (mHandlerThread != null)
@@ -95,27 +91,36 @@ public class KeyEventHandler {
 
         detectCtrlAltKeys(event);
         if (event.action == DOWN) if (handleKeyboardShortcuts(event.code)) return;
+        if (mInput.getMouseEventHandler().handleAimTrigger(event.code, event.action)) return;
         handleMouseAimAndCamera(event.code, event.action);
         int i = Utils.obtainIndex(event.code);
         if (i > 0) {
             // A-Z and 0-9 keys
         } else { // CTRL, ALT, Arrow keys
-            if (event.code.equals("KEY_GRAVE") && event.action == DOWN)
+            if (event.code.equals("KEY_GRAVE") && event.action == DOWN
+                    && (mInput.getKeymapProfile().camera == null
+                    || !event.code.equals(mInput.getKeymapProfile().camera.triggerKeyCode)))
                 if (keymapConfig.keyGraveMouseAim) {
                     mInput.getMouseEventHandler().triggerMouseAim();
                     return;
                 }
         }
 
+        if (dpadHandlers == null) return;
         for (DpadHandler dpadHandler: dpadHandlers) {
             if (dpadHandler != null)
                 dpadHandler.handleEvent(event.code, event.action);
         }
 
+        boolean movementActive = false;
+        for (DpadHandler handler : dpadHandlers)
+            if (handler != null && handler.hasHeldDirection()) movementActive = true;
+        mInput.getMouseEventHandler().setMovementActive(movementActive);
+
         ArrayList<Key> keyList = mInput.getKeymapProfile().keys;
         for (Key key : keyList)
             if (event.code.equals(key.code))
-                mInput.injectEvent(key.x, key.y, event.action, keyList.indexOf(key));
+                mInput.injectEvent(key.x + key.offset, key.y + key.offset, event.action, keyList.indexOf(key));
 
         for (SwipeKeyHandler swipeKeyHandler : swipeKeyHandlers)
             swipeKeyHandler.handleEvent(event, mInput, pidProvider, eventHandler, keymapConfig.swipeDelayMs);
@@ -190,21 +195,13 @@ public class KeyEventHandler {
     }
 
     private void handleMouseAimAndCamera(String keycode, int action) {
-        KeymapConfig keymapConfig = mInput.getKeymapConfig();
-        if (keycode.equals(keymapConfig.mouseAimShortcutKey)) {
-            // if not toggle then hold down key to aim
-            if (keymapConfig.mouseAimToggle && action == UP) return;
+        Camera camera = mInput.getKeymapProfile().camera;
+        if (camera != null && keycode.equals(camera.triggerKeyCode)) {
+            if (!camera.toggle || action == DOWN) mInput.getMouseEventHandler().triggerCamera();
+            return;
+        }
+        KeymapConfig config = mInput.getKeymapConfig();
+        if (keycode.equals(config.mouseAimShortcutKey) && (!config.mouseAimToggle || action == DOWN))
             mInput.getMouseEventHandler().triggerMouseAim();
-        }
-        else {
-            Camera camera = mInput.getKeymapProfile().camera;
-            if (camera != null && keycode.length() == 5) {
-                if (keycode.equals(camera.triggerKeyCode)) {
-                    // If not toggle then hold down key to move camera
-                    if (camera.toggle && action == UP) return;
-                    mInput.getMouseEventHandler().triggerCamera();
-                }
-            }
-        }
     }
 }

@@ -17,6 +17,7 @@ import java.util.Objects;
 
 import xtr.keymapper.keymap.KeymapConfig;
 import xtr.keymapper.mouse.MouseAimHandler;
+import xtr.keymapper.mouse.HeldAimHandler;
 import xtr.keymapper.mouse.MousePinchZoom;
 import xtr.keymapper.mouse.MouseWalkHandler;
 import xtr.keymapper.mouse.MouseWheelZoom;
@@ -35,6 +36,9 @@ public class MouseEventHandler {
     private MouseAimHandler mouseAimHandler;
     private MouseAimHandler mouseCameraHandler;
     private Key rightClick;
+    private Key leftClick;
+    private HeldAimHandler heldAim;
+    private boolean leftMappedDown, rightMappedDown;
     int x1 = 100, y1 = 100;
     int width; int height;
     private final IInputInterface mInput;
@@ -54,6 +58,11 @@ public class MouseEventHandler {
     }
 
     private boolean triggerMouseAimOrCamera(MouseAimHandler instance) {
+        if (instance == null) return false;
+        if (mouseAimOrCameraHandler != null && mouseAimOrCameraHandler != instance && mouseAimActive) {
+            mouseAimOrCameraHandler.stop();
+            mouseAimActive = false;
+        }
         mouseAimOrCameraHandler = instance;
         if (instance != null) {
             mouseAimActive = !mouseAimActive;
@@ -97,6 +106,8 @@ public class MouseEventHandler {
             mouseWalkHandler = new MouseWalkHandler(profile.mouseWalk);
 
         this.rightClick = profile.rightClick;
+        this.leftClick = profile.leftClick;
+        heldAim = new HeldAimHandler(profile.aimKeys, mInput::injectEvent, width, height);
 
         if (mouseAimHandler != null) {
             mouseAimHandler.setInterface(mInput);
@@ -145,29 +156,82 @@ public class MouseEventHandler {
         mouseWalkHandler.stop();
     }
 
-    private boolean handleRightClick(int value) {
-        if (value == 1) {
-            if (mouseWalkHandler != null) {
-                if (mouseWalkActive) stopMouseWalk();
-                else startMouseWalk();
-                return true;
-            }
-            else if (mInput.getKeymapConfig().rightClickMouseAim)
-                return triggerMouseAim();
-            else if (Objects.equals(mInput.getKeymapConfig().mouseAimShortcutKey, "KEY_RMB"))
-                return triggerMouseAim();
+    public void activateDefaultMode() {
+        if (mInput.getKeymapProfile().camera != null && mInput.getKeymapProfile().camera.autoActive)
+            triggerCamera();
+    }
+
+    public synchronized void setMovementActive(boolean active) {
+        if (mouseCameraHandler != null) mouseCameraHandler.setMovementActive(active);
+    }
+
+    public synchronized boolean handleAimTrigger(String code, int action) {
+        boolean wasActive = heldAim != null && heldAim.isActive();
+        boolean handled = heldAim != null && heldAim.trigger(code, action);
+        if (!handled) return false;
+        if (!wasActive && heldAim.isActive()) {
+            if (mouseAimActive && mouseAimOrCameraHandler != null) mouseAimOrCameraHandler.stop();
+            if (mouseWalkActive) stopMouseWalk();
+            mInput.hideCursor();
+        } else if (wasActive && !heldAim.isActive()) {
+            if (mouseAimActive && mouseAimOrCameraHandler != null) mouseAimOrCameraHandler.resetPointer();
+            else mInput.showCursor();
         }
-        else if (rightClick != null) {
-            mInput.injectEvent(rightClick.x, rightClick.y, value, pointerId);
+        return true;
+    }
+
+    private boolean handleRightClick(int value) {
+        if (rightClick != null) {
+            if (value == 1 && !rightMappedDown) {
+                rightMappedDown = true;
+                mInput.injectEvent(rightClick.x, rightClick.y, 1, PointerId.pid3.id);
+            } else if (value == 0 && rightMappedDown) {
+                rightMappedDown = false;
+                mInput.injectEvent(rightClick.x, rightClick.y, 0, PointerId.pid3.id);
+            }
+            return true;
+        }
+        boolean aimShortcut = mInput.getKeymapConfig().rightClickMouseAim
+                || Objects.equals(mInput.getKeymapConfig().mouseAimShortcutKey, "KEY_RMB");
+        if (mouseWalkHandler != null) {
+            if (value == 1) {
+                if (mouseWalkActive) stopMouseWalk(); else startMouseWalk();
+            }
+            return true;
+        }
+        if (aimShortcut && mouseAimHandler != null) {
+            if (value == 1) triggerMouseAim();
             return true;
         }
         return false;
     }
 
-    public void handleEvent(int code, int value) {
-        if (mouseAimOrCameraHandler != null && mouseAimActive) {
-            mouseAimOrCameraHandler.handleEvent(code, value, this::handleMouseEvent);
-        } else handleMouseEvent(code, value);
+    public synchronized void handleEvent(int code, int value) {
+        if (code == BTN_RIGHT && handleAimTrigger("BTN_RIGHT", value)) return;
+        if (code == BTN_MOUSE && handleAimTrigger("BTN_MOUSE", value)) return;
+        if (heldAim != null && heldAim.isActive() && (code == REL_X || code == REL_Y)) {
+            heldAim.move(code == REL_X, value);
+            return;
+        }
+        if (code == BTN_MOUSE && leftClick != null) {
+            if (value == 1 && !leftMappedDown) {
+                leftMappedDown = true;
+                mInput.injectEvent(leftClick.x, leftClick.y, 1, pointerId);
+            } else if (value == 0 && leftMappedDown) {
+                leftMappedDown = false;
+                mInput.injectEvent(leftClick.x, leftClick.y, 0, pointerId);
+            }
+            return;
+        }
+        if (mouseAimOrCameraHandler != null && mouseAimActive
+                && (heldAim == null || !heldAim.isActive())) {
+            // CAMERA owns motion, while legacy MOUSE_AIM also owns its configured left click.
+            if (code == REL_X || code == REL_Y || (code == BTN_MOUSE && mouseAimOrCameraHandler == mouseAimHandler)) {
+                mouseAimOrCameraHandler.handleEvent(code, value, this::handleMouseEvent);
+                return;
+            }
+        }
+        handleMouseEvent(code, value);
     }
 
     private void handleMouseEvent(int code, int value) {
@@ -215,10 +279,12 @@ public class MouseEventHandler {
             case BTN_MIDDLE:
                 if (value == 1 && Objects.equals(mInput.getKeymapConfig().mouseAimShortcutKey, "KEY_MMB"))
                     triggerMouseAim();
-                else if (value == 1 && Objects.equals(mInput.getKeymapProfile().camera.triggerKeyCode, "KEY_MMB"))
+                else if (value == 1 && mInput.getKeymapProfile().camera != null
+                        && Objects.equals(mInput.getKeymapProfile().camera.triggerKeyCode, "KEY_MMB"))
                     triggerCamera();
                 else
                     mInput.injectMiddleClickEvent(x1, y1, pointerId, value == 1);
+                break;
 
             case REL_WHEEL:
                 if (mInput.getKeyEventHandler().ctrlKeyPressed && keymapConfig.ctrlMouseWheelZoom)
@@ -245,7 +311,23 @@ public class MouseEventHandler {
         movePointerX();
     }
 
-    public void stop() {
+    public synchronized void resetAfterMouseDisconnect() {
+        stop();
+        init(width, height);
+        activateDefaultMode();
+    }
+
+    public synchronized void stop() {
+        if (heldAim != null) heldAim.stop();
+        if (mouseAimHandler != null) mouseAimHandler.stop();
+        if (mouseCameraHandler != null) mouseCameraHandler.stop();
+        if (mouseWalkActive) stopMouseWalk();
+        if (leftMappedDown) mInput.injectEvent(leftClick.x, leftClick.y, 0, pointerId);
+        if (rightMappedDown) mInput.injectEvent(rightClick.x, rightClick.y, 0, PointerId.pid3.id);
+        if (pointer_down) mInput.injectEvent(x1, y1, 0, pointerId);
+        leftMappedDown = rightMappedDown = pointer_down = mouseAimActive = mouseWalkActive = false;
+        mouseAimOrCameraHandler = null;
+        heldAim = null;
         scrollZoomHandler = null;
         pinchZoom = null;
         mouseAimHandler = null;

@@ -65,15 +65,17 @@ public class Input {
         initPointers();
     }
 
-    public void injectTouch(int action, int pointerId, float pressure, float x, float y) {
+    public synchronized void injectTouch(int action, int pointerId, float pressure, float x, float y) {
         long now = SystemClock.uptimeMillis();
         Point point = new Point(x, y);
 
         int pointerIndex = pointersState.getPointerIndex(pointerId);
         if (pointerIndex == -1) {
             Log.e(RemoteService.TAG, "Too many pointers for touch event");
+            return;
         }
         Pointer pointer = pointersState.get(pointerIndex);
+        pointerProperties[pointerIndex].toolType = MotionEvent.TOOL_TYPE_FINGER;
         pointer.setPoint(point);
         pointer.setPressure(pressure);
         if (action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_HOVER_MOVE)
@@ -117,6 +119,7 @@ public class Input {
         int pointerIndex = pointersState.getPointerIndex(pointerId);
         if (pointerIndex == -1) {
             Log.e(RemoteService.TAG, "Too many pointers for touch event");
+            return;
         }
 
         Pointer pointer = pointersState.get(pointerIndex);

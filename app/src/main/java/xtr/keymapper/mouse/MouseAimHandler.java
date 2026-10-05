@@ -28,6 +28,12 @@ public class MouseAimHandler {
     private IInputInterface service;
     private final int pointerIdMouse = PointerId.pid1.id;
     private final int pointerIdAim = PointerId.pid2.id;
+    private boolean pointerDown;
+    private boolean automaticCamera;
+    private boolean movementActive;
+    private long lastMouseMotion;
+    private Runnable finishCameraDrag;
+    private int generation;
     private final Handler mHandler = new Handler(Looper.getMainLooper());
 
     public MouseAimHandler(MouseAimConfig config){
@@ -47,6 +53,7 @@ public class MouseAimHandler {
                 camera.xSensitivity,
                 camera.ySensitivity,
                 false));
+        automaticCamera = camera.autoActive;
     }
 
     public void setInterface(IInputInterface input) {
@@ -69,29 +76,50 @@ public class MouseAimHandler {
 
     }
 
-    public void resetPointer() {
-        service.injectEvent(currentX, currentY, UP, pointerIdAim);
+    public synchronized void resetPointer() {
+        ++generation;
+        mHandler.removeCallbacksAndMessages(null);
+        if (pointerDown) service.injectEvent(currentX, currentY, UP, pointerIdAim);
+        pointerDown = false;
+        currentY = config.yCenter;
+        currentX = config.xCenter;
+        if (automaticCamera) return;
+        final int token = generation;
         mHandler.postDelayed(() -> {
-                    currentY = config.yCenter;
-                    currentX = config.xCenter;
-                    service.injectEvent(currentX, currentY, DOWN, pointerIdAim);
-                },
-                service.getKeymapConfig().swipeDelayMs);
+            synchronized (MouseAimHandler.this) {
+                if (generation != token) return;
+                pointerDown = true;
+                service.injectEvent(currentX, currentY, DOWN, pointerIdAim);
+            }
+        }, service.getKeymapConfig().swipeDelayMs);
     }
 
-    public void handleEvent(int code, int value, OnButtonClickListener listener) {
+    public synchronized void handleEvent(int code, int value, OnButtonClickListener listener) {
+        if (automaticCamera && (code == REL_X || code == REL_Y)) {
+            if (finishCameraDrag != null) mHandler.removeCallbacks(finishCameraDrag);
+            if (!pointerDown) {
+                currentX = config.xCenter;
+                currentY = config.yCenter;
+                pointerDown = true;
+                service.injectEvent(currentX, currentY, DOWN, pointerIdAim);
+            }
+            lastMouseMotion = android.os.SystemClock.uptimeMillis();
+            if (movementActive) scheduleCameraRelease(250);
+        }
         switch (code) {
             case REL_X:
                 currentX += calculateScaledX(value);
-                if (config.limitedBounds && (currentX > area.right || currentX < area.left))
+                if (automaticCamera) currentX = Math.max(area.left, Math.min(area.right - 1, currentX));
+                else if (config.limitedBounds && (currentX > area.right || currentX < area.left))
                     resetPointer();
-                service.injectEvent(currentX, currentY, MOVE, pointerIdAim);
+                if (pointerDown) service.injectEvent(currentX, currentY, MOVE, pointerIdAim);
                 break;
             case REL_Y:
                 currentY += calculateScaledY(value);
-                if (config.limitedBounds && (currentY > area.bottom || currentY < area.top))
+                if (automaticCamera) currentY = Math.max(area.top, Math.min(area.bottom - 1, currentY));
+                else if (config.limitedBounds && (currentY > area.bottom || currentY < area.top))
                     resetPointer();
-                service.injectEvent(currentX, currentY, MOVE, pointerIdAim);
+                if (pointerDown) service.injectEvent(currentX, currentY, MOVE, pointerIdAim);
                 break;
 
             case BTN_MOUSE:
@@ -135,8 +163,33 @@ public class MouseAimHandler {
         }
     }
 
-    public void stop() {
-        service.injectEvent(currentX, currentY, UP, pointerIdAim);
+    public synchronized void setMovementActive(boolean active) {
+        if (!automaticCamera || movementActive == active) return;
+        movementActive = active;
+        ++generation;
+        if (finishCameraDrag != null) mHandler.removeCallbacks(finishCameraDrag);
+        if (active && pointerDown) {
+            long remaining = Math.max(0, 250 - (android.os.SystemClock.uptimeMillis() - lastMouseMotion));
+            if (remaining == 0) stop();
+            else scheduleCameraRelease(remaining);
+        }
+    }
+
+    private void scheduleCameraRelease(long delayMs) {
+        final int token = ++generation;
+        finishCameraDrag = () -> {
+            synchronized (MouseAimHandler.this) {
+                if (movementActive && generation == token) stop();
+            }
+        };
+        mHandler.postDelayed(finishCameraDrag, delayMs);
+    }
+
+    public synchronized void stop() {
+        ++generation;
+        mHandler.removeCallbacksAndMessages(null);
+        if (pointerDown) service.injectEvent(currentX, currentY, UP, pointerIdAim);
+        pointerDown = false;
     }
 
     public interface OnButtonClickListener {

@@ -11,6 +11,7 @@ import java.util.function.Consumer;
 
 import xtr.keymapper.BuildConfig;
 import xtr.keymapper.keymap.element.Camera;
+import xtr.keymapper.keymap.element.AimKey;
 import xtr.keymapper.keymap.element.Dpad;
 import xtr.keymapper.keymap.element.Key;
 import xtr.keymapper.keymap.element.MouseWalk;
@@ -27,6 +28,8 @@ public class KeymapProfile implements Parcelable {
     public ArrayList<Key> keys = new ArrayList<>();
     public ArrayList<SwipeKey> swipeKeys = new ArrayList<>();
     public Key rightClick;
+    public Key leftClick;
+    public ArrayList<AimKey> aimKeys = new ArrayList<>();
     public boolean disabled = false;
     public int xRes, yRes;
     public final HashMap<String, Macro> macroIdMap = new HashMap<>();
@@ -52,6 +55,9 @@ public class KeymapProfile implements Parcelable {
                 scaler.accept(dpad);
             }
             scaler.accept(rightClick);
+            scaler.accept(leftClick);
+            scaler.accept(camera);
+            aimKeys.forEach(scaler);
             scaler.accept(mouseAimConfig);
             scaler.accept(mouseWalk);
 
@@ -74,6 +80,8 @@ public class KeymapProfile implements Parcelable {
         if(hashMap != null) macroIdMap.putAll(hashMap);
         camera = in.readParcelable(Camera.class.getClassLoader());
         mouseWalk = in.readParcelable(MouseWalk.class.getClassLoader());
+        leftClick = in.readParcelable(Key.class.getClassLoader());
+        aimKeys = in.createTypedArrayList(AimKey.CREATOR);
     }
 
     @Override
@@ -90,6 +98,8 @@ public class KeymapProfile implements Parcelable {
         dest.writeMap(macroIdMap);
         dest.writeParcelable(camera, flags);
         dest.writeParcelable(mouseWalk, flags);
+        dest.writeParcelable(leftClick, flags);
+        dest.writeTypedList(aimKeys);
     }
 
     @Override
