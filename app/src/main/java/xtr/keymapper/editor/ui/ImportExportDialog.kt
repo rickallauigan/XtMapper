@@ -16,6 +16,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -43,6 +44,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun ImportExportDialog(
@@ -65,7 +67,10 @@ fun ImportExportDialog(
         context.startActivity(shareIntent)
     }
 
-    Dialog(onDismissRequest = onDismissRequest) {
+    Dialog(
+        onDismissRequest = onDismissRequest,
+        properties = DialogProperties(decorFitsSystemWindows = false)
+    ) {
         ImportExportContent(
             code = code,
             onImportClicked = onImportClicked,
@@ -89,7 +94,8 @@ fun ImportExportContent(
     var editedCode by remember(code) { mutableStateOf(code) }
     var importError by remember { mutableStateOf<String?>(null) }
     Card(
-        modifier = modifier.fillMaxWidth(),
+        // Constrain the Card's scroll viewport above the IME and inside system bars.
+        modifier = modifier.safeDrawingPadding().imePadding().fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -98,7 +104,6 @@ fun ImportExportContent(
 
         Column(
             modifier = Modifier
-                .imePadding()
                 .verticalScroll(rememberScrollState())
                 .padding(16.dp)
                 .fillMaxWidth(),
