@@ -10,10 +10,10 @@ import xtr.keymapper.keymap.KeymapProfileElement;
 
 public class Dpad extends KeymapProfileElement {
     private float viewX, viewY;
-    private final int width, height;
-    public final float xOfCenter;
-    public final float yOfCenter;
-    public final float radius;
+    private int width, height;
+    public float xOfCenter;
+    public float yOfCenter;
+    public float radius;
     public final DpadKeyCodes keycodes;
     public static final String TAG = "DPAD";
     public static final String TAG_ARROW_KEYS = "DPAD_UDLR";
@@ -86,6 +86,9 @@ public class Dpad extends KeymapProfileElement {
     public void scale(float scaleX, float scaleY) {
         viewX *= scaleX;
         viewY *= scaleY;
+        xOfCenter *= scaleX; yOfCenter *= scaleY;
+        radius *= Math.min(scaleX, scaleY);
+        width = Math.round(width * scaleX); height = Math.round(height * scaleY);
     }
 
     public Dpad(String[] data){

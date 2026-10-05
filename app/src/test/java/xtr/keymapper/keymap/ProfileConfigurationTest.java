@@ -79,6 +79,56 @@ public class ProfileConfigurationTest {
         assertEquals(50f, profile.dpadArray[0].getX(), 0f);
         assertEquals(960, profile.xRes);
     }
+    @Test public void newAimAndMouseLinesRoundTripAndScale() {
+        KeymapProfile profile = ProfileConfiguration.parse("AIM_KEY KEY_Q 500 600 180 2 3\n"
+                + "AIM_KEY BTN_RIGHT 700 800 180 1 1\nMOUSE_LEFT 900 950\n"
+                + "CAMERA 1000 400 1 2 1 KEY_GRAVE 1\nSCREENSIZE 2280 1080\nENABLED");
+        assertEquals(2, profile.aimKeys.size());
+        KeymapProfile imported = ProfileConfiguration.parse(profile.aimKeys.get(0).getData()
+                + "\n" + profile.camera.getData() + "\nMOUSE_LEFT " + profile.leftClick.x + " " + profile.leftClick.y);
+        assertEquals("KEY_Q", imported.aimKeys.get(0).code);
+        assertEquals(180f, imported.aimKeys.get(0).radius, 0f);
+        assertTrue(imported.camera.autoActive);
+        assertEquals(900f, imported.leftClick.x, 0f);
+        profile.scale(1140, 540);
+        assertEquals(250f, profile.aimKeys.get(0).x, 0f);
+        assertEquals(90f, profile.aimKeys.get(0).radius, 0f);
+        assertEquals(1f, profile.aimKeys.get(0).xSensitivity, 0f);
+        assertEquals(500f, profile.camera.x, 0f);
+        assertEquals(450f, profile.leftClick.x, 0f);
+    }
+
+    @Test public void rejectsMalformedAimAndAmbiguousButtons() {
+        rejects("AIM_KEY KEY_Q 1 2 3", "Expected");
+        rejects("AIM_KEY UNKNOWN 1 2 30 1 1", "trigger");
+        rejects("AIM_KEY KEY_Q NaN 2 30 1 1", "finite");
+        rejects("AIM_KEY KEY_Q 1 2 0 1 1", "positive");
+        rejects("AIM_KEY KEY_Q 1 2 30 -1 1", "positive");
+        rejects("AIM_KEY KEY_Q 1 2 30 1 1\nAIM_KEY KEY_Q 3 4 30 1 1", "Duplicate");
+        rejects("AIM_KEY KEY_Q 1 2 30 1 1\nKEY_Q 3 4 0", "conflicts");
+        rejects("AIM_KEY BTN_RIGHT 1 2 30 1 1\nMOUSE_RIGHT 3 4", "conflicts");
+        rejects("MOUSE_LEFT 1 2\nMOUSE_LEFT 3 4", "Duplicate");
+        rejects("CAMERA 1 2 1 1 1 KEY_GRAVE 2", "0 or 1");
+    }
+
+    @Test public void aimTriggersCannotShadowMovementSwipeCameraOrMacro() {
+        String aim = "AIM_KEY KEY_Q 100 200 50 1 1\n";
+        rejects(aim + "DPAD 0 0 50 50 50 100 100 KEY_Q KEY_S KEY_A KEY_D", "conflicts");
+        rejects(aim + "SWIPE_KEY Q 1 2 E 3 4", "conflicts");
+        rejects(aim + "SWIPE_KEY KEY_Q 1 2 KEY_E 3 4", "conflicts");
+        rejects(aim + "CAMERA 1 2 1 1 1 KEY_Q", "conflicts");
+        rejects(aim + "MACRO test Q", "conflicts");
+    }
+
+    @Test public void legacyCameraDoesNotActivateAutomaticallyAndDpadRuntimeScales() {
+        KeymapProfile profile = ProfileConfiguration.parse(REPRESENTATIVE);
+        assertFalse(profile.camera.autoActive);
+        profile.scale(960, 540);
+        assertEquals(75f, profile.dpadArray[0].xOfCenter, 0f);
+        assertEquals(125f, profile.dpadArray[0].yOfCenter, 0f);
+        assertEquals(25f, profile.dpadArray[0].radius, 0f);
+    }
+
     private static void rejects(String text, String message) {
         IllegalArgumentException error = assertThrows(IllegalArgumentException.class,
                 () -> ProfileConfiguration.parse(text));

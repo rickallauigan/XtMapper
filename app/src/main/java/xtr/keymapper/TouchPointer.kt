@@ -368,6 +368,12 @@ class TouchPointer : Service() {
         override fun onForegroundActivitiesChanged(packageName: String) {
             if (packageName == lastPackageName) return
             lastPackageName = packageName
+            // Release the previous app's active touches before selecting or prompting for a profile.
+            try {
+                mService?.pauseMouse()
+            } catch (error: RemoteException) {
+                Log.e("profile switch", "Could not pause previous mapping", error)
+            }
             val context: Context = this@TouchPointer
             val keymapProfiles = KeymapProfiles(context)
             if (!keymapProfiles.profileExistsWithPackageName(packageName)) {

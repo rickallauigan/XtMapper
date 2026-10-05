@@ -12,6 +12,7 @@ public class Camera extends KeymapProfileElement {
     public String triggerKeyCode = "KEY_ALT";
     public static final String TAG = "CAMERA";
     public boolean toggle = true;
+    public boolean autoActive = false;
     public float xSensitivity = 1f;
     public float ySensitivity = 1f;
 
@@ -25,6 +26,7 @@ public class Camera extends KeymapProfileElement {
         xSensitivity = Float.parseFloat(data[3]);
         ySensitivity = Float.parseFloat(data[4]);
         toggle = Integer.parseInt(data[5]) != 0;
+        if (data.length == 8) autoActive = Integer.parseInt(data[7]) != 0;
         if (data[6].length() >= 5) triggerKeyCode = data[6];
     }
 
@@ -35,6 +37,7 @@ public class Camera extends KeymapProfileElement {
         toggle = in.readByte() != 0;
         xSensitivity = in.readFloat();
         ySensitivity = in.readFloat();
+        autoActive = in.readByte() != 0;
     }
 
     public static final Creator<Camera> CREATOR = new Creator<Camera>() {
@@ -56,14 +59,15 @@ public class Camera extends KeymapProfileElement {
                 xSensitivity + " " +
                 ySensitivity + " " +
                 (toggle ? 1 : 0) + " " +
-                triggerKeyCode;
+                triggerKeyCode + (autoActive ? " 1" : "");
     }
 
 
 
     @Override
     public void scale(float scaleX, float scaleY) {
-
+        x *= scaleX; y *= scaleY;
+        xSensitivity *= scaleX; ySensitivity *= scaleY;
     }
 
     @Override
@@ -79,6 +83,7 @@ public class Camera extends KeymapProfileElement {
         dest.writeByte((byte) (toggle ? 1 : 0));
         dest.writeFloat(xSensitivity);
         dest.writeFloat(ySensitivity);
+        dest.writeByte((byte) (autoActive ? 1 : 0));
     }
 
 

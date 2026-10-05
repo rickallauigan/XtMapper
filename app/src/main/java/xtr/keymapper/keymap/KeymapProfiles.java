@@ -13,6 +13,7 @@ import java.util.Set;
 import java.util.function.BiConsumer;
 
 import xtr.keymapper.keymap.element.Camera;
+import xtr.keymapper.keymap.element.AimKey;
 import xtr.keymapper.keymap.element.Dpad;
 import xtr.keymapper.keymap.element.Key;
 import xtr.keymapper.keymap.element.MouseWalk;
@@ -137,6 +138,16 @@ public class KeymapProfiles {
                                 profile.dpadArray[i] = new Dpad(data);
                                 break;
                             }
+                    break;
+
+                case AimKey.TAG:
+                    profile.aimKeys.add(new AimKey(data));
+                    break;
+
+                case "MOUSE_LEFT":
+                    profile.leftClick = new Key();
+                    profile.leftClick.x = Float.parseFloat(data[1]);
+                    profile.leftClick.y = Float.parseFloat(data[2]);
                     break;
 
                 case MOUSE_RIGHT:

@@ -17,23 +17,26 @@ describe intended work, not confirmed compatibility or release commitments.
   fix, and S10e landscape software-keyboard/IME usability work
   ([PR #3](https://github.com/rickallauigan/XtMapper/pull/3)).
 
+- **S10e MLBB profile v0.1:** measured fullscreen HUD calibration, reusable
+  configuration, held-key mouse skill aiming, fixed mouse attacks, camera
+  inspection/follow behavior, and user-verified 1v1 Hero Training gameplay.
+  See [profile and validation](../profiles/mlbb/samsung-s10e/README.md).
+
 ## Current
 
 - Maintain community documentation with clear tested and unvalidated status,
   contribution paths, and reusable profile plans.
-- S10e MLBB measurement/profile work: measure real device/game coordinate space,
-  document the HUD layout, and develop keyboard/mouse mappings. A finished
-  MLBB profile is not yet available or gameplay-validated.
+- Maintain and broaden the tested S10e MLBB v0.1 HUD/hero coverage.
 
 ## Next
 
-1. **S10e MLBB profile v0.1:** publish only after measured coordinates,
-   documented HUD requirements, and on-device gameplay validation.
-2. **Gameplay tuning:** refine mappings from recorded gameplay observations.
-3. **Reusable/versioned profile:** package configuration with device/model,
-   logical resolution and coordinate assumptions, HUD requirements, tested
-   XtMapper version/commit, and test notes. The proposed `profiles/mlbb/`
-   device directories are a future structure, not existing finished profiles.
+1. **Gameplay tuning:** refine mappings from recorded gameplay observations
+   and validate additional heroes, HUDs, and camera preferences.
+2. **Reusable/versioned profiles:** expand the existing `profiles/mlbb/`
+   collection with device/model, measured coordinates, HUD requirements,
+   runtime version/commit, and physical gameplay validation.
+3. **Broader device testing:** retain stable descriptor-based device grouping
+   and validate reconnection behavior across additional hardware.
 4. **GameSir investigation:** test general controller compatibility, GameSir
    G8 Galileo, and GameSir G8+. Controller support is not yet validated.
 5. **Mate 9 work:** validate XtMapper compatibility and input devices, develop

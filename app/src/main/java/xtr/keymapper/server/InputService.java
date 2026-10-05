@@ -26,9 +26,12 @@ public class InputService implements IInputInterface {
     private KeymapConfig keymapConfig;
     private KeymapProfile keymapProfile;
     private final Input input;
+    private final java.util.Map<Integer, float[]> activeTouches = new java.util.HashMap<>();
+    private volatile boolean acceptingTouches = true;
+    private final int screenWidth, screenHeight;
     public static final int UP = 0, DOWN = 1, MOVE = 2;
     private final IRemoteServiceCallback mCallback;
-    boolean stopEvents = false;
+    volatile boolean stopEvents = false;
     private final boolean isWaylandClient;
     private final int touchpadInputMode;
     private final View cursorView;
@@ -45,6 +48,8 @@ public class InputService implements IInputInterface {
                         View cursorView,
                         boolean isWaylandClient,
                         int displayId) throws RemoteException {
+        this.screenWidth = screenWidth; this.screenHeight = screenHeight;
+        input = new Input(displayId);
         profile.scale(screenWidth, screenHeight);
         this.keymapProfile = profile;
         this.keymapConfig = keymapConfig;
@@ -73,10 +78,20 @@ public class InputService implements IInputInterface {
 
         keyEventHandler = new KeyEventHandler(this);
         keyEventHandler.init();
-        input = new Input(displayId);
+        mouseEventHandler.activateDefaultMode();
     }
 
-    public void injectEvent(float x, float y, int action, int pointerId) {
+    public synchronized void injectEvent(float x, float y, int action, int pointerId) {
+        if (!acceptingTouches || !Float.isFinite(x) || !Float.isFinite(y)) return;
+        if (action == DOWN) {
+            if (activeTouches.containsKey(pointerId)) return;
+            if (activeTouches.size() >= 10) return;
+            activeTouches.put(pointerId, new float[]{x, y});
+        } else {
+            if (!activeTouches.containsKey(pointerId)) return;
+            if (action == UP) activeTouches.remove(pointerId);
+            else activeTouches.put(pointerId, new float[]{x, y});
+        }
         switch (action) {
             case UP:
                 input.injectTouch(MotionEvent.ACTION_UP, pointerId, 0.0f, x, y);
@@ -113,6 +128,13 @@ public class InputService implements IInputInterface {
     @Override
     public void pauseResumeKeymap() {
         stopEvents = !stopEvents;
+        if (stopEvents) stop();
+        else {
+            acceptingTouches = true;
+            mouseEventHandler.init(screenWidth, screenHeight);
+            keyEventHandler.init();
+            mouseEventHandler.activateDefaultMode();
+        }
         if (!isWaylandClient) {
             setMouseLock(!stopEvents);
         }
@@ -198,12 +220,20 @@ public class InputService implements IInputInterface {
 
     public void reloadKeymap() {
         try {
-            this.keymapProfile = mCallback.requestKeymapProfile();
-            this.keymapConfig = mCallback.requestKeymapConfig();
-            this.stop();
-            keyEventHandler.init();
-            mouseEventHandler.init();
+            KeymapProfile nextProfile = mCallback.requestKeymapProfile();
+            KeymapConfig nextConfig = mCallback.requestKeymapConfig();
+            stop();
+            nextProfile.scale(screenWidth, screenHeight);
+            keymapProfile = nextProfile;
+            keymapConfig = nextConfig;
+            if (!stopEvents) {
+                acceptingTouches = true;
+                mouseEventHandler.init(screenWidth, screenHeight);
+                keyEventHandler.init();
+                mouseEventHandler.activateDefaultMode();
+            }
         } catch (Exception e) {
+            stop();
             Log.e(RemoteService.TAG, e.getMessage(), e);
         }
     }
@@ -211,6 +241,12 @@ public class InputService implements IInputInterface {
     public void stop() {
         keyEventHandler.stop();
         mouseEventHandler.stop();
+        synchronized (this) {
+            acceptingTouches = false;
+            // Includes fixed keys, D-pad, swipe/macro pointers and pending mode transitions.
+            activeTouches.forEach((id, point) -> input.injectTouch(MotionEvent.ACTION_UP, id, 0, point[0], point[1]));
+            activeTouches.clear();
+        }
     }
 
     public void stopTouchpad() {
@@ -221,6 +257,7 @@ public class InputService implements IInputInterface {
     }
 
     public native int openDevice(String device);
+    public native boolean isMouseDeviceCurrent(String device);
     public native void stopMouse();
     
     // mouse cursor created with uinput in mouse_cursor.cpp
@@ -242,7 +279,9 @@ public class InputService implements IInputInterface {
      * Called from native code to send mouse event to client
      */
     public void sendMouseEvent(int code, int value) {
-        if (!stopEvents) mouseEventHandler.handleEvent(code, value);
+        if (code == -1) {
+            if (acceptingTouches && !stopEvents) mouseEventHandler.resetAfterMouseDisconnect();
+        } else if (!stopEvents) mouseEventHandler.handleEvent(code, value);
     }
 
     public void onWaylandMouseEvent(String line) {

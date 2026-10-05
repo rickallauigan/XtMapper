@@ -1,170 +1,69 @@
 package xtr.keymapper.dpad;
 
-import static xtr.keymapper.server.InputService.DOWN;
-import static xtr.keymapper.server.InputService.MOVE;
-import static xtr.keymapper.server.InputService.UP;
-
 import android.os.Handler;
 import android.os.SystemClock;
-
 import xtr.keymapper.keymap.element.Dpad;
 import xtr.keymapper.server.IInputInterface;
+import static xtr.keymapper.server.InputService.*;
 
+/** Existing virtual joystick, with ordered transitions and repeat-safe held-key state. */
 public class DpadHandler {
-
-    private final DpadEvent moveUp, moveDown, moveLeft, moveRight;
-
-    private final DpadEvent moveUpLeft, moveUpRight, moveDownLeft, moveDownRight;
-
-    private final DpadEvent tapUp, tapDown;
-
-    private boolean KEY_UP, KEY_DOWN, KEY_LEFT, KEY_RIGHT;
-    private final String KEY_UP_CODE, KEY_DOWN_CODE, KEY_LEFT_CODE, KEY_RIGHT_CODE;
-
+    private final Dpad config;
+    private final int pointerId, delayMillis;
+    private final Handler handler;
+    private final boolean[] held = new boolean[4];
+    private final String[] codes;
     private IInputInterface input;
-    private final int pointerId;
-    private final Handler mHandler;
-    private final int delayMillis;
-    private long lastEvent;
+    private boolean pointerDown, stopped;
+    private long nextEventAt;
 
-    private static class DpadEvent {
-        float x, y;
-        int action;
-
-        public DpadEvent(float x, float y, int action) {
-            this.x = x;
-            this.y = y;
-            this.action = action;
-        }
-    }
-
-    public DpadHandler(Dpad dpad, int pointerId, Handler handler, int delayMillis){
-        this.pointerId = pointerId;
-        this.mHandler = handler;
+    public DpadHandler(Dpad config, int pointerId, Handler handler, int delayMillis) {
+        this.config = config; this.pointerId = pointerId; this.handler = handler;
         this.delayMillis = delayMillis;
-
-        float radius = dpad.radius;
-        float xOfCenter = dpad.xOfCenter;
-        float yOfCenter = dpad.yOfCenter;
-        
-        moveUp = new DpadEvent(xOfCenter, Float.sum(yOfCenter, -radius), MOVE);
-        moveDown = new DpadEvent(xOfCenter, Float.sum(yOfCenter, radius), MOVE);
-        moveLeft = new DpadEvent(Float.sum(xOfCenter, -radius), yOfCenter, MOVE);
-        moveRight = new DpadEvent(Float.sum(xOfCenter, radius), yOfCenter, MOVE);
-
-        moveUpLeft = new DpadEvent(Float.sum(xOfCenter, -radius), Float.sum(yOfCenter, -radius), MOVE);
-        moveUpRight = new DpadEvent(Float.sum(xOfCenter, radius), Float.sum(yOfCenter, -radius), MOVE);
-        moveDownLeft = new DpadEvent(Float.sum(xOfCenter, -radius), Float.sum(yOfCenter, radius), MOVE);
-        moveDownRight = new DpadEvent(Float.sum(xOfCenter, radius), Float.sum(yOfCenter, radius), MOVE);
-        
-        tapUp = new DpadEvent(xOfCenter, yOfCenter, UP);
-        tapDown = new DpadEvent(xOfCenter, yOfCenter, DOWN);
-
-        KEY_UP_CODE = dpad.keycodes.Up;
-        KEY_DOWN_CODE = dpad.keycodes.Down;
-        KEY_LEFT_CODE = dpad.keycodes.Left;
-        KEY_RIGHT_CODE = dpad.keycodes.Right;
+        codes = new String[]{config.keycodes.Up, config.keycodes.Down, config.keycodes.Left, config.keycodes.Right};
     }
 
-    public void setInterface(IInputInterface input){
-        this.input = input;
-    }
+    public void setInterface(IInputInterface input) { this.input = input; }
 
-    public void handleEvent(String key, int action) {
-        if (action == DOWN) {
-            sendEventDown(key);
-        } else {
-            sendEventUp(key);
+    public synchronized void handleEvent(String code, int action) {
+        if (stopped || (action != DOWN && action != UP)) return;
+        int index = -1;
+        for (int i = 0; i < codes.length; i++) if (codes[i].equals(code)) index = i;
+        if (index < 0 || held[index] == (action == DOWN)) return;
+        held[index] = action == DOWN;
+        boolean any = held[0] || held[1] || held[2] || held[3];
+        if (!pointerDown && any) {
+            pointerDown = true;
+            enqueue(config.xOfCenter, config.yOfCenter, DOWN);
         }
+        if (!any) {
+            pointerDown = false;
+            enqueue(config.xOfCenter, config.yOfCenter, UP);
+            return;
+        }
+        int dx = (held[3] ? 1 : 0) - (held[2] ? 1 : 0);
+        int dy = (held[1] ? 1 : 0) - (held[0] ? 1 : 0);
+        float radius = config.radius;
+        if (dx != 0 && dy != 0) radius /= (float) Math.sqrt(2);
+        enqueue(config.xOfCenter + dx * radius, config.yOfCenter + dy * radius, MOVE);
     }
-    
-    private void sendDpadEvent(DpadEvent event) {
-        long now = SystemClock.uptimeMillis();
 
-        Runnable sendEvent = () -> {
-            input.injectEvent(event.x, event.y, event.action, pointerId);
-        };
-        if ( (now - lastEvent) >= delayMillis ) mHandler.postDelayed(sendEvent, delayMillis);
-        else mHandler.postDelayed(sendEvent, delayMillis + delayMillis);
-        lastEvent = now;
-    }
-    
-    private void sendEventDown(String key) {
-        if (key.equals(KEY_UP_CODE)) {
-            KEY_UP = true;
-            if (!KEY_DOWN && !KEY_LEFT && !KEY_RIGHT) {
-                sendDpadEvent(tapDown); // Send pointer down event only if no other keys are pressed
+    private void enqueue(float x, float y, int action) {
+        nextEventAt = Math.max(nextEventAt + 1, SystemClock.uptimeMillis() + delayMillis);
+        handler.postAtTime(() -> {
+            synchronized (DpadHandler.this) {
+                if (!stopped) input.injectEvent(x, y, action, pointerId);
             }
-            // For moving Dpad in 8 directions with 4 keys
-            if (KEY_LEFT)
-                sendDpadEvent(moveUpLeft);  // If left key is already pressed then move dpad to north-west
-            else if (KEY_RIGHT)
-                sendDpadEvent(moveUpRight); // If right key is already pressed then move dpad to north-east
-            else
-                sendDpadEvent(moveUp); // If left or right keys are not pressed then move dpad straight up
-        }
-        else if (key.equals(KEY_DOWN_CODE)) {
-            KEY_DOWN = true;
-            if (!KEY_LEFT && !KEY_RIGHT && !KEY_UP)
-                sendDpadEvent(tapDown);
-
-            if (KEY_LEFT) sendDpadEvent(moveDownLeft);
-            else if (KEY_RIGHT) sendDpadEvent(moveDownRight);
-            else sendDpadEvent(moveDown);
-
-        } else if (key.equals(KEY_LEFT_CODE)) {
-            KEY_LEFT = true;
-            if (!KEY_DOWN && !KEY_RIGHT && !KEY_UP)
-                sendDpadEvent(tapDown);
-
-            if (KEY_UP) sendDpadEvent(moveUpLeft);
-            else if (KEY_DOWN) sendDpadEvent(moveDownLeft);
-            else sendDpadEvent(moveLeft);
-
-        } else if (key.equals(KEY_RIGHT_CODE)) {
-            KEY_RIGHT = true;
-            if (!KEY_DOWN && !KEY_LEFT && !KEY_UP)
-                sendDpadEvent(tapDown);
-
-            if (KEY_UP) sendDpadEvent(moveUpRight);
-            else if (KEY_DOWN) sendDpadEvent(moveDownRight);
-            else sendDpadEvent(moveRight);
-        }
+        }, this, nextEventAt);
     }
 
-    private void sendEventUp(String key) {
-        if (key.equals(KEY_UP_CODE)) {
-            KEY_UP = false;
-            if (!KEY_DOWN && !KEY_LEFT && !KEY_RIGHT)
-                sendDpadEvent(tapUp);
+    public synchronized boolean hasHeldDirection() {
+        return !stopped && (held[0] || held[1] || held[2] || held[3]);
+    }
 
-            if (KEY_LEFT) sendDpadEvent(moveLeft);
-            else if (KEY_RIGHT) sendDpadEvent(moveRight);
-
-        } else if (key.equals(KEY_DOWN_CODE)) {
-            KEY_DOWN = false;
-            if (!KEY_LEFT && !KEY_RIGHT && !KEY_UP)
-                sendDpadEvent(tapUp);
-
-            if (KEY_LEFT) sendDpadEvent(moveLeft);
-            else if (KEY_RIGHT) sendDpadEvent(moveRight);
-
-        } else if (key.equals(KEY_LEFT_CODE)) {
-            KEY_LEFT = false;
-            if (!KEY_DOWN && !KEY_RIGHT && !KEY_UP)
-                sendDpadEvent(tapUp);
-
-            if (KEY_UP) sendDpadEvent(moveUp);
-            else if (KEY_DOWN) sendDpadEvent(moveDown);
-
-        } else if (key.equals(KEY_RIGHT_CODE)) {
-            KEY_RIGHT = false;
-            if (!KEY_DOWN && !KEY_LEFT && !KEY_UP)
-                sendDpadEvent(tapUp);
-
-            if (KEY_UP) sendDpadEvent(moveUp);
-            else if (KEY_DOWN) sendDpadEvent(moveDown);
-
-        }
+    public synchronized void stop() {
+        stopped = true;
+        handler.removeCallbacksAndMessages(this);
+        // InputService releases active pointers after every event producer has stopped.
     }
 }

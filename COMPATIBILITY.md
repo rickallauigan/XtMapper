@@ -4,7 +4,7 @@ Status applies to this fork's validation, not every device or input accessory.
 
 | Target | Status | Use | Keyboard | Mouse | Controller / GameSir | Small-landscape editor fix |
 | --- | --- | --- | --- | --- | --- | --- |
-| Samsung Galaxy S10e | Primary / actively tested | Android gaming; MLBB profile in development | Tested | Tested | Planned | Included; manually tested on-device |
+| Samsung Galaxy S10e | Primary / actively tested | MLBB v0.1 physically tested in 1v1 Hero Training | Tested | Tested | Planned | Included; manually tested on-device |
 | Huawei Mate 9 | Planned | Dedicated Android gaming target | Not yet validated | Not yet validated | Not yet validated | Not yet validated on Mate 9 |
 | Other Android devices | Upstream/device dependent; community testing welcome | Depends on device/setup | Not specifically validated | Not specifically validated | Not specifically validated | Not specifically validated |
 
@@ -26,9 +26,14 @@ malformed-profile validation, Reset before Save, Save/reopen persistence,
 clipboard Export, Share of current edited configuration text, the CAMERA
 trigger serialization round-trip fix, and S10e landscape software-keyboard/IME
 usability work. See [PR #3](https://github.com/rickallauigan/XtMapper/pull/3).
-This infrastructure does not establish a validated game profile.
+This infrastructure is used by the measured S10e MLBB profile.
 
-The S10e MLBB profile is in development and is not finished or published.
+The [S10e MLBB profile v0.1](profiles/mlbb/samsung-s10e/README.md) is included
+with user-verified Training gameplay on rooted SM-G970F / beyond0lte, Android 16
+LineageOS, Evision RGB Keyboard and Lenovo M300. Tested controls include
+movement/diagonals, quick and mouse-aimed Q/E/R, F/B/G, LMB attack, RMB Skill 2,
+camera, simultaneous input, and physical touch. The measured Dyrroth HUD uses
+2280×1080 global coordinates with no cutout offset. Other HUDs/heroes need testing.
 General controller support, GameSir G8 Galileo, and GameSir G8+ remain
 unvalidated. Mate 9 compatibility and profiles are future work. No performance
 or latency improvements versus upstream are claimed.
