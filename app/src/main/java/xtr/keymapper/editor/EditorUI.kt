@@ -207,6 +207,9 @@ class EditorUI(
                 PixelFormat.TRANSLUCENT
             )
 
+        if (startMode != SHOW_KEYMAP_ONLY && Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+            mParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
+        }
 
         if (alpha < 1 && alpha > 0) overlayView.setAlpha(alpha)
 
