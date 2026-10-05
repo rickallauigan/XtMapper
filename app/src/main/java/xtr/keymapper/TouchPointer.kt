@@ -35,6 +35,7 @@ import xtr.keymapper.keymap.KeymapConfig
 import xtr.keymapper.keymap.KeymapProfile
 import xtr.keymapper.keymap.KeymapProfiles
 import xtr.keymapper.profiles.ProfileSelector
+import xtr.keymapper.devices.*
 import xtr.keymapper.server.RemoteServiceHelper
 
 class TouchPointer : Service() {
@@ -388,7 +389,13 @@ class TouchPointer : Service() {
             } else {
                 // App specific profiles selection dialog
                 mHandler.post {
-                    ProfileSelector.select(context, { profile: String? ->
+                    val store = DeviceMappingStore(context)
+                    val preferred = DeviceGroupResolver.preferredProfile(
+                        store.listGroups(), store.listBindings(),
+                        InputDeviceDiscovery.connected().map { it.persistentIdentity }.toSet(),
+                        packageName, keymapProfiles.getAllProfilesForApp(packageName).mapValues { it.value.packageName }
+                    )
+                    val selectProfile: (String?) -> Unit = { profile ->
                         // Reloading profile
                         this@TouchPointer.selectedProfile = profile
                         val keymapProfile = keymapProfiles.getProfile(profile, true)
@@ -410,7 +417,9 @@ class TouchPointer : Service() {
                                 Toast.LENGTH_SHORT
                             ).show()
                         }
-                    }, packageName)
+                    }
+                    if (preferred != null) selectProfile(preferred)
+                    else ProfileSelector.select(context, { profile -> selectProfile(profile) }, packageName)
                 }
             }
         }

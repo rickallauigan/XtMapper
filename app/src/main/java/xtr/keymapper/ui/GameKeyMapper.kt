@@ -24,7 +24,10 @@ import androidx.compose.foundation.lazy.LazyListScope
 import xtr.keymapper.activity.MainActivity
 import android.content.pm.PackageManager
 import android.provider.Settings
-import android.view.InputDevice
+import android.hardware.input.InputManager
+import android.os.Handler
+import android.os.Looper
+import xtr.keymapper.devices.*
 import androidx.annotation.DrawableRes
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -62,19 +65,6 @@ internal data class GameProfile(
     val keyCount: Int = 0,
     val lastUsed: String? = null
 )
-
-internal data class HardwareDevice(
-    val name: String,
-    val type: DeviceType,
-    val isConnected: Boolean
-)
-
-internal enum class DeviceType {
-    BLUETOOTH_CONTROLLER,
-    USB_KEYBOARD,
-    GAMEPAD,
-    NONE
-}
 
 internal data class AppState(
     val isServiceActive: Boolean = false,
@@ -263,22 +253,7 @@ private fun createComposeState(activity: MainActivity): AppState {
 }
 
 private fun loadComposeDevices(): List<HardwareDevice> {
-    val devices = mutableListOf<HardwareDevice>()
-    for (deviceId in InputDevice.getDeviceIds()) {
-        val device = InputDevice.getDevice(deviceId) ?: continue
-        if (device.isVirtual) continue
-
-        val sources = device.sources
-        val type = when {
-            sources and InputDevice.SOURCE_KEYBOARD == InputDevice.SOURCE_KEYBOARD -> DeviceType.USB_KEYBOARD
-            sources and InputDevice.SOURCE_GAMEPAD == InputDevice.SOURCE_GAMEPAD -> DeviceType.GAMEPAD
-            sources and InputDevice.SOURCE_JOYSTICK == InputDevice.SOURCE_JOYSTICK -> DeviceType.BLUETOOTH_CONTROLLER
-            else -> null
-        } ?: continue
-
-        devices += HardwareDevice(device.name, type, true)
-    }
-    return devices
+    return InputDeviceDiscovery.connected()
 }
 
 @Composable
@@ -287,6 +262,22 @@ private fun GameKeyMapperActivityContent(activity: MainActivity) {
 
     fun refresh() {
         state.value = createComposeState(activity)
+    }
+
+    DisposableEffect(activity) {
+        val manager = activity.getSystemService(InputManager::class.java)
+        val listener = object : InputManager.InputDeviceListener {
+            override fun onInputDeviceAdded(id: Int) = refresh()
+            override fun onInputDeviceRemoved(id: Int) = refresh()
+            override fun onInputDeviceChanged(id: Int) = refresh()
+        }
+        manager.registerInputDeviceListener(listener, Handler(Looper.getMainLooper()))
+        val lifecycle = activity.lifecycle
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refresh()
+        }
+        lifecycle.addObserver(observer)
+        onDispose { manager.unregisterInputDeviceListener(listener); lifecycle.removeObserver(observer) }
     }
 
     KeymapperApp(
@@ -509,10 +500,8 @@ private fun HardwareStatus(
 
             Spacer(modifier = Modifier.height(12.dp))
 
+            DeviceGroupManager(devices)
             if (devices.isNotEmpty()) {
-                devices.filter { it.isConnected }.forEach { device ->
-                    HardwareDeviceItem(device = device, modifier = Modifier.fillMaxWidth())
-                }
 
                 Spacer(modifier = Modifier.height(12.dp))
                 Button(
@@ -556,7 +545,7 @@ private fun HardwareStatus(
 }
 
 @Composable
-private fun HardwareDeviceItem(
+internal fun HardwareDeviceItem(
     device: HardwareDevice,
     modifier: Modifier = Modifier
 ) {
@@ -582,6 +571,7 @@ private fun HardwareDeviceItem(
                         DeviceType.BLUETOOTH_CONTROLLER -> Icons.Default.Gamepad
                         DeviceType.USB_KEYBOARD -> Icons.Default.Keyboard
                         DeviceType.GAMEPAD -> Icons.Default.Gamepad
+                        DeviceType.MOUSE -> Icons.Default.Mouse
                         DeviceType.NONE -> Icons.Default.DeviceUnknown
                     },
                     contentDescription = null,
