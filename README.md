@@ -18,10 +18,9 @@
 
 ## Community fork and tested status
 
-This is a community-maintained, open-source XtMapper fork focused on tested
-Android gaming setups, beginning with the Samsung Galaxy S10e and
-Mobile Legends: Bang Bang (MLBB). XtMapper maps keyboard and mouse input to
-Android game controls.
+Community-maintained XtMapper fork focused on tested Android gaming setups.
+The first gameplay-validated setup is Samsung Galaxy S10e with Mobile Legends:
+Bang Bang (MLBB), using measured keyboard/mouse touch mappings.
 
 This repository, [rickallauigan/XtMapper](https://github.com/rickallauigan/XtMapper),
 is based on [Xtr126/XtMapper](https://github.com/Xtr126/XtMapper). Credit for the
@@ -32,13 +31,14 @@ reference resources and do not establish this fork's compatibility.
 
 | Device | Keyboard / mouse | MLBB profile | GameSir | Status |
 | --- | --- | --- | --- | --- |
-| Samsung Galaxy S10e | Tested with our setup | In development | Planned; unvalidated | Primary development/test device |
+| Samsung Galaxy S10e | Evision RGB Keyboard + Lenovo M300 tested | v0.1 tested in Hero Training | Planned; unvalidated | Primary development/test device |
 | Huawei Mate 9 | Planned; unvalidated | Planned | Planned; unvalidated | Future gaming-device target |
 | Other Android devices | Upstream/device dependent; unvalidated by this fork | Community testing welcome | Unvalidated by this fork | Community testing welcome |
 
-The fork builds, installs, and runs on the S10e in our environment. Tested
-keyboard/mouse use does not establish a finished MLBB profile or compatibility
-with every peripheral. No performance or latency improvements are claimed.
+The fork builds, installs, and runs on the S10e in our environment. The MLBB
+v0.1 profile was physically validated in 1v1 Hero Training with the
+listed peripherals; this does not establish compatibility with every HUD,
+hero, device, or peripheral. No performance or latency improvements are claimed.
 
 - [Compatibility status](COMPATIBILITY.md)
 - [Galaxy S10e workflow and validation](docs/S10E.md)
@@ -55,31 +55,36 @@ with every peripheral. No performance or latency improvements are claimed.
 - CAMERA trigger serialization round-trip fix.
 - Landscape software-keyboard/IME usability work for the S10e import/export dialog.
 
-These changes provide the editor and configuration infrastructure for upcoming
-profiles; they do not constitute a validated game profile. See
+These changes provide the editor and configuration infrastructure used by the
+measured S10e MLBB profile. See
 [PR #1](https://github.com/rickallauigan/XtMapper/pull/1) and
 [PR #3](https://github.com/rickallauigan/XtMapper/pull/3) for the completed work.
 
 ## Mobile Legends: Bang Bang — first targeted game
 
-MLBB is the first targeted game. The S10e profile is in development and is not
-finished or published. The upcoming workflow will use real measured device/game
-coordinate space, a documented MLBB HUD layout, reusable XtMapper profile
-configuration, keyboard/mouse mapping, and on-device gameplay validation.
-Coordinates and mappings must be measured and tested before publication.
+The [S10e profile v0.1](profiles/mlbb/samsung-s10e/README.md) uses measured HUD
+anchors in the full **2280×1080** global display plane. In 1v1 Hero Training,
+the user verified WASD and diagonals, Q/E/R mouse aiming, F/B/G utilities,
+LMB Basic Attack, RMB Skill 2, camera movement, simultaneous inputs, and
+physical touchscreen interaction. Results apply to the documented Dyrroth HUD.
 
-### Upcoming quick start (planned)
+### Quick start
 
-Once an S10e MLBB profile is validated and available, the intended workflow is:
+1. Install the tested fork build identified in the profile notes; this session
+   uses **XtMapper(Debug)** (`xtr.keymapper.debug`) on the rooted S10e.
+2. Import [mlbb-kbm-v0.1.txt](profiles/mlbb/samsung-s10e/mlbb-kbm-v0.1.txt)
+   through the editor's configuration importer and save as **MLBB KBM S10e v0.1**.
+3. In Device & Mapping Manager, bind **My Gaming Setup** (Evision + Lenovo M300)
+   and `com.mobile.legends` to that profile. Enable automatic profiling.
+4. Start the mapping service and open MLBB. Verify the documented HUD anchors
+   in Training before using a different hero or HUD.
 
-1. Install the tested fork build identified by the profile documentation.
-2. Activate the required XtMapper service/root setup for the tested device setup.
-3. Import the S10e MLBB profile.
-4. Match the documented MLBB HUD layout.
-5. Save and test on-device.
-
-This is a future workflow, not a usable profile quick start yet. See the
-[S10e notes](docs/S10E.md) and [roadmap](docs/ROADMAP.md) for current status.
+WASD moves; Q/E/R cast skills; F/B/G activate Battle Spell/Recall/Regen;
+LMB attacks; RMB aims Skill 2. Hold a skill, move the mouse, release to cast.
+Mouse pans the camera. While stationary, the view stays for inspection;
+while moving, a 250 ms mouse pause resumes hero-follow. Camera travel is limited
+by the game's battlefield drag and screen dimensions. See the profile notes
+for exact validation and limitations.
 
 ## Planned controller investigation
 
@@ -95,22 +100,12 @@ reversible gaming/performance tuning, and LeaOS evaluation if useful. None of
 these areas is complete or validated on the Mate 9, and no performance gains
 are promised. See [Mate 9 planning](docs/MATE9.md).
 
-## Reusable game/device profiles (planned)
+## Reusable game/device profiles
 
-A future profile collection could be organized by game and device:
-
-```text
-profiles/
-  mlbb/
-    samsung-s10e/
-    huawei-mate9/
-```
-
-This structure is planned; no finished profiles are provided yet. Each profile
-should eventually include its configuration, device/model, logical resolution
-and coordinate assumptions, game HUD requirements, tested XtMapper version or
-commit, and test notes. Profiles should be reusable and versioned, with
-validation tied to a specific setup.
+The first profile is [MLBB / Samsung S10e v0.1](profiles/mlbb/samsung-s10e/README.md),
+with configuration, hardware, coordinate assumptions, HUD requirements, and
+physical gameplay results. Mate 9 profiles remain future work. Generic held
+skill aiming and mouse-button syntax are documented in [PROFILE-AIM.md](docs/PROFILE-AIM.md).
 
 ## Upstream about and features
 https://xtr126.github.io/XtMapper-docs/guides/about  
