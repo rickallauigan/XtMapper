@@ -37,8 +37,11 @@ describe intended work, not confirmed compatibility or release commitments.
    runtime version/commit, and physical gameplay validation.
 3. **Broader device testing:** retain stable descriptor-based device grouping
    and validate reconnection behavior across additional hardware.
-4. **GameSir investigation:** test general controller compatibility, GameSir
-   G8 Galileo, and GameSir G8+. Controller support is not yet validated.
+4. **GameSir physical acceptance:** G8 buttons, analog skill aiming and a
+   shared-anchor S10e profile are implemented, built and installed. Core
+   buttons, skill aiming/casting and native movement coexistence passed human
+   Training checks. Calibrate missing targeting/utility controls and
+   then investigate other controllers and G8+ (untested).
 5. **Mate 9 work:** validate XtMapper compatibility and input devices, develop
    an MLBB profile, and consider reversible gaming/performance tuning and
    LeaOS evaluation if useful. These are future work; no performance gains

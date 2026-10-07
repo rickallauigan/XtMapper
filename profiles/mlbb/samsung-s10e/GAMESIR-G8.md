@@ -1,0 +1,165 @@
+# Samsung S10e MLBB GameSir G8 v0.1
+
+This controller profile extends the physically tested S10e KBM setup. It does
+not establish a second HUD coordinate system. `generate-gamesir-profile.py`
+reads `mlbb-kbm-v0.1.txt` and generates `mlbb-gamesir-g8-v0.1.txt`; regenerate
+and run `--check` after changing shared action positions. No game coordinates
+are embedded in event handlers.
+
+Tested build: the controller implementation commit in the current GameSir PR;
+APK SHA-256 `743a7b971497cec7f14e7eb3b58704869e54d5ddda33c721bd9780a36698ba87`.
+
+## Hardware and evidence
+
+- Samsung Galaxy S10e SM-G970F / beyond0lte, rooted Android 16 / LineageOS.
+- GameSir G8 Galileo, USB. In this observed controller mode Android reports
+  `Sony Interactive Entertainment GameSir-G8`, VID/PID `054c:0ce6`.
+  This is observed device metadata, not a universal G8 identifier requirement.
+- Inspection date: 2026-10-07. MLBB Hero Training, current Dyrroth HUD and
+  Revitalize Battle Spell from the KBM calibration.
+- Full landscape mapping plane: **2280 × 1080**, global origin **0,0**.
+  The left cutout does not offset mappings. Insets remain editor chrome only.
+- Right stick measured via capability inspection: RX/RY minimum 0, maximum
+  255, current centered value 128. Runtime queries actual device ranges.
+- Original KBM physical gameplay results remain recorded in [README.md](README.md).
+  Those results validate the reused touch anchors, not the new controller path.
+
+## Control layout
+
+| Physical input | Linux input | MLBB action | Default profile |
+| --- | --- | --- | --- |
+| Left stick | ABS_X / ABS_Y | Native hero movement | Untouched; no synthetic joystick |
+| A | BTN_GAMEPAD | Basic Attack; hold to repeat | KBM left-click anchor, 150 ms |
+| B | BTN_EAST | Regen | KBM G anchor |
+| X | BTN_WEST | Recall | KBM B anchor |
+| Y | BTN_NORTH | Active equipment / Roam active | Configurable; no measured anchor |
+| RB | BTN_TR | Skill 1 + right-stick aim | KBM Q center |
+| RT | BTN_TR2 | Skill 2 + right-stick aim | KBM E center |
+| LB | BTN_TL | Ultimate + right-stick aim | KBM R center |
+| LT | BTN_TL2 | Battle Spell + right-stick aim | KBM F anchor |
+| Right stick | ABS_RX / ABS_RY | Aim held skill/spell; otherwise camera pan | Absolute aim / camera velocity |
+| D-pad up | ABS_HAT0Y = -1 → DPAD_UP | Attack Turret | Configurable; no measured anchor |
+| D-pad down | ABS_HAT0Y = +1 → DPAD_DOWN | Attack Minion | Configurable; no measured anchor |
+| D-pad left | ABS_HAT0X = -1 → DPAD_LEFT | Shop / secondary utility | Configurable; no measured anchor |
+| D-pad right | ABS_HAT0X = +1 → DPAD_RIGHT | Utility | Configurable |
+| L3 | BTN_THUMBL | Hero target lock / utility | Configurable; no measured anchor |
+| R3 | BTN_THUMBR | Cancel skill / utility | Unbound; reliable cancel gesture pending |
+| Select | BTN_SELECT | Scoreboard / utility | Configurable; no measured anchor |
+| Start | BTN_START | Native MLBB chat | Unbound; preserves reported native behavior |
+| Logo / Mode | BTN_MODE | Android/controller behavior | Unbound |
+| M-style button | Separate touchpad BTN_TOUCH / BTN_TOOL_FINGER / BTN_MOUSE | Future overlay selector | Experimental; unbound |
+
+LT also produces ABS_Z, and RT produces ABS_RZ. Only their digital buttons
+activate actions, so analog trigger changes cannot double-fire. Revitalize is
+not a directional spell. A directional spell such as Flicker needs a separate
+physical gameplay check; this session does not change spell/account settings.
+
+Hold a shoulder/trigger, aim with the right stick, then release to cast. A
+centered quick press uses the skill's normal touch behavior. The profile uses
+KBM's accepted 180 px aim radius, sensitivity 1, radial dead zone 0.15, and
+non-inverted Y (Linux down is display down). The user physically accepted smooth, accurate right-stick aiming with these
+settings after the controller-discovery pause fix. Most recently held skill owns stick
+movement; other held skills retain independent, releasable pointers.
+
+## Import and Device Mapping Manager
+
+Use **XtMapper(Debug)**, package `xtr.keymapper.debug`.
+
+1. Import the configuration into **MLBB GameSir G8 S10e v0.1**, or import a
+   normal profile ZIP containing that name and this text.
+2. In Device & Mapping Manager, create/reuse **GameSir G8 Setup** and select
+   the logical GameSir controller. Android may combine controller, sensor,
+   and touchpad interfaces into one InputDevice. Persist its stable descriptor,
+   never its runtime ID or event path.
+3. Bind this group + `com.mobile.legends` to the controller profile.
+4. Leave automatic profiling enabled and start the mapping service.
+5. Open MLBB Hero Training. The existing **My Gaming Setup** and KBM binding
+   remain available when using the keyboard/mouse hardware instead.
+
+The existing manager already supports GAMEPAD logical devices; no second
+controller group store or profile-selection system is introduced.
+
+To add a pending utility later, capture its real HUD center and add a normal
+`BTN_NORTH x y 0` or `DPAD_UP x y 0` binding through the editor/configuration.
+Do not use placeholder coordinates. R3 cannot reliably cancel merely by
+lifting an aimed touch: that normally casts. It stays unbound until a verified
+cancel target/gesture is available.
+
+## Physical acceptance procedure
+
+Use Hero Training only. First press **A** near a training target and verify
+Basic Attack, repeated presses, and clean release. Then verify B Regen and X
+Recall. For RB, RT, LB, and LT individually: quick tap; hold centered; aim in
+four cardinal directions and diagonals; vary magnitude; return to center;
+release displaced/centered. Confirm cast behavior and no stuck targeting.
+Repeat while moving with the native left stick. Check rapid RB → RT and
+movement + aiming + A together. Release all controls, reconnect the controller,
+then repeat a short smoke test. Check touchscreen use and service restart.
+Pending utilities need calibration before testing their intended actions.
+
+## Physical results
+
+Human Hero Training checks on the installed debug build:
+
+| Control | Result |
+| --- | --- |
+| A Basic Attack and release | PASS |
+| RB Skill 1, smooth right-stick aim, directional release cast | PASS |
+| RT Skill 2, smooth right-stick aim, directional release cast | PASS |
+| LB Ultimate, smooth right-stick aim, directional release cast | PASS |
+| LT Revitalize and clean release | PASS; non-directional spell |
+| B Regen and X Recall, clean release | PASS |
+| Native movement + RB aim/cast + A attack, clean release | PASS after service restart |
+| Service restart + reconnect recovery, movement/RB/A smoke | PASS |
+| Physical touchscreen camera drag with service active | PASS |
+| Right-stick camera pan and center release | PASS |
+| Hold A repeated attack and release | PASS |
+| Camera → RB skill aim/cast → camera priority | PASS |
+| Native movement + held-A repeat + camera, clean release | PASS |
+| Directional Battle Spell | Not tested |
+| Optional unbound utility controls | Not tested |
+
+Initial right-stick snapping failed acceptance. Continuous raw axes and
+periodic injected pauses identified repeated capability probes as the cause.
+Caching capabilities by node identity and using stat-only hotplug polling
+removed those pauses; the user then accepted accurate smooth aiming/casting.
+
+## Status and limits
+
+- **DETECTED:** S10e and G8 controller/touchpad/sensor capabilities over ADB.
+- **IMPLEMENTED:** BTN persistence/editor labels/runtime, controller discovery,
+  absolute analog aiming, digital triggers, D-pad state and cleanup.
+- **BUILT / INSTALLED / PHYSICALLY TESTED:** see the session entry in
+  [DEVLOG](../../../docs/DEVLOG.md); compilation/installation are separate
+  from physical gameplay acceptance.
+- Native left-stick movement was previously reported physically smooth.
+  Native left-stick movement alongside RB aiming/casting and A attack passed
+  fresh human acceptance for this APK/profile.
+- Y, turret/minion targeting, Shop, L3, Select, and cancel-cast have no
+  measured anchors in the tested KBM profile and remain unbound.
+- Right-stick camera uses the measured KBM camera anchor. Pan while displaced;
+  center to release and restore hero following. Held skills take priority.
+  Display edges limit a single drag; center and move again to start a new drag.
+  Camera pan/center release, held-A repeat/release, and RB skill priority/return
+  to camera passed human acceptance.
+- Stock MLBB can still react to native controller buttons/axes. XtMapper does
+  not grab the controller or suppress native left-stick/system behavior.
+  Physical tests must detect any unintended native button side effects.
+- One controller owns mapped input at a time; multi-controller gameplay is
+  outside v0.1. Other controllers need their own capability/gameplay checks.
+- GameSir G8+ is untested. Its transport, descriptors and controller mode may
+  differ; no claims about G8+ support follow from this USB G8 inspection.
+
+## Troubleshooting and building
+
+`adb devices -l` must show SM-G970F / beyond0lte. Use `getevent -pl` to inspect
+current nodes; never save an event number. `logcat` messages `Controller detected`
+and `Controller disconnected` show capability selection and reconnect cleanup.
+Motion sensor and touchpad interfaces must not be selected as aiming devices.
+
+Run `./gradlew testDebugUnitTest assembleDebug`, both scripts under
+`app/src/test/native/`, and
+`python3 profiles/mlbb/samsung-s10e/generate-gamesir-profile.py --check`.
+APK: `app/build/outputs/apk/debug/app-debug.apk`.
+Install with `adb -s <discovered-S10e-serial> install -r <APK>`.
+Root/overlay permissions are required for this tested injection architecture.

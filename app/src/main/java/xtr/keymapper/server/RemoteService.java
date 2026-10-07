@@ -178,7 +178,7 @@ public class RemoteService extends IRemoteService.Stub {
 
                     KeyEventHandler k = inputService.getKeyEventHandler();
                     if (!inputService.stopEvents) {
-                        k.handleEvent(data[1]);
+                        if (!inputService.onControllerEvent(data[0], data[1])) k.handleEvent(data[1]);
                     } else {
                         k.handleKeyboardShortcutEvent(data[1]);
                     }

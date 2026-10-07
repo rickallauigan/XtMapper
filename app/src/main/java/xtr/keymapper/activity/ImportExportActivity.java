@@ -122,6 +122,7 @@ public class ImportExportActivity extends AppCompatActivity {
                      getContentResolver().openInputStream(dataUri)) {
             ZipInputStream zipInputStream = new ZipInputStream(inputStream);
             ZipEntry zipEntry;
+            java.util.Map<String, Set<String>> imported = new java.util.LinkedHashMap<>();
             while ((zipEntry = zipInputStream.getNextEntry()) != null) {
                 String profileName = zipEntry.getName();
                 Set<String> stringSet = new HashSet<>();
@@ -131,13 +132,15 @@ public class ImportExportActivity extends AppCompatActivity {
                 while ((line = reader.readLine()) != null) {
                     stringSet.add(line);
                 }
-                new KeymapProfiles(this).sharedPref
-                        .edit()
-                        .putStringSet(profileName, stringSet)
-                        .apply();
+                imported.put(profileName, xtr.keymapper.keymap.ProfileConfiguration.validate(String.join("\n", stringSet)));
                 zipInputStream.closeEntry();
             }
             zipInputStream.close();
+            var edit = new KeymapProfiles(this).sharedPref.edit();
+            imported.forEach(edit::putStringSet);
+            edit.apply();
+        } catch (IllegalArgumentException e) {
+            android.widget.Toast.makeText(this, e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

@@ -120,3 +120,10 @@ Unit tests cover syntax/validation, legacy parsing, scaling, Parcelable and
 editor import/export, mouse press/release, held aim, camera priority/inspection,
 D-pad coexistence, repeats, pause/stop/reload, and mouse disconnect cleanup.
 Gameplay results above are the human's observations, independently of tests/logs.
+
+## GameSir controller profile
+
+[GameSir G8 v0.1](GAMESIR-G8.md) reuses this profile’s measured action anchors
+through a generation/check script. Controller implementation/build/installation
+status and physical gameplay acceptance are tracked separately from the KBM
+results above. Unmeasured utility controls remain configurable.

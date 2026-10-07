@@ -13,6 +13,8 @@ public class Camera extends KeymapProfileElement {
     public static final String TAG = "CAMERA";
     public boolean toggle = true;
     public boolean autoActive = false;
+    public boolean stick;
+    public float deadZone = 0.15f;
     public float xSensitivity = 1f;
     public float ySensitivity = 1f;
 
@@ -25,6 +27,8 @@ public class Camera extends KeymapProfileElement {
         y = Float.parseFloat(data[2]);
         xSensitivity = Float.parseFloat(data[3]);
         ySensitivity = Float.parseFloat(data[4]);
+        stick = data[0].equals("STICK_CAMERA");
+        if (stick) { deadZone = Float.parseFloat(data[5]); return; }
         toggle = Integer.parseInt(data[5]) != 0;
         if (data.length == 8) autoActive = Integer.parseInt(data[7]) != 0;
         if (data[6].length() >= 5) triggerKeyCode = data[6];
@@ -38,6 +42,7 @@ public class Camera extends KeymapProfileElement {
         xSensitivity = in.readFloat();
         ySensitivity = in.readFloat();
         autoActive = in.readByte() != 0;
+        stick = in.readByte() != 0; deadZone = in.readFloat();
     }
 
     public static final Creator<Camera> CREATOR = new Creator<Camera>() {
@@ -53,6 +58,7 @@ public class Camera extends KeymapProfileElement {
     };
 
     public String getData() {
+        if (stick) return "STICK_CAMERA " + x + " " + y + " " + xSensitivity + " " + ySensitivity + " " + deadZone;
         return TAG + " " +
                 x + " " +
                 y + " " +
@@ -84,6 +90,7 @@ public class Camera extends KeymapProfileElement {
         dest.writeFloat(xSensitivity);
         dest.writeFloat(ySensitivity);
         dest.writeByte((byte) (autoActive ? 1 : 0));
+        dest.writeByte((byte) (stick ? 1 : 0)); dest.writeFloat(deadZone);
     }
 
 

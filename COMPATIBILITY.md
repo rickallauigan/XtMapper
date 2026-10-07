@@ -34,8 +34,12 @@ LineageOS, Evision RGB Keyboard and Lenovo M300. Tested controls include
 movement/diagonals, quick and mouse-aimed Q/E/R, F/B/G, LMB attack, RMB Skill 2,
 camera, simultaneous input, and physical touch. The measured Dyrroth HUD uses
 2280×1080 global coordinates with no cutout offset. Other HUDs/heroes need testing.
-General controller support, GameSir G8 Galileo, and GameSir G8+ remain
-unvalidated. Mate 9 compatibility and profiles are future work. No performance
+GameSir G8 Galileo is detected on the S10e; controller buttons/analog skill
+aiming are implemented, built and installed. Human Hero Training checks
+passed A/B/X, RB/RT/LB aiming and casting, LT Revitalize, and native movement
+with aim/attack. Follow-up right-stick camera, held-A repeat, skill/camera
+priority and combined-input release checks also passed. Unmeasured utility bindings remain pending; see [the G8 guide](profiles/mlbb/samsung-s10e/GAMESIR-G8.md).
+Other controllers and GameSir G8+ remain unvalidated. Mate 9 compatibility and profiles are future work. No performance
 or latency improvements versus upstream are claimed.
 
 See [S10e validation](docs/S10E.md), [Mate 9 planning](docs/MATE9.md), and the

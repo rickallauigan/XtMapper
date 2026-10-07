@@ -35,6 +35,7 @@ public class KeyEventHandler {
     private final IInputInterface mInput;
     private HandlerThread mHandlerThread;
     private Handler eventHandler;
+    private RepeatKeyHandler repeatKeys;
 
     public KeyEventHandler(IInputInterface mInput) {
         this.mInput = mInput;
@@ -44,6 +45,7 @@ public class KeyEventHandler {
         mHandlerThread = new HandlerThread("events");
         mHandlerThread.start();
         eventHandler = new Handler(mHandlerThread.getLooper());
+        repeatKeys = new RepeatKeyHandler(eventHandler, mInput::injectEvent);
 
         KeymapConfig keymapConfig = mInput.getKeymapConfig();
         KeymapProfile profile = mInput.getKeymapProfile();
@@ -66,6 +68,7 @@ public class KeyEventHandler {
     }
 
     public void stop() {
+        if (repeatKeys != null) { repeatKeys.reset(); repeatKeys = null; }
         if (dpadHandlers != null) for (DpadHandler handler : dpadHandlers) if (handler != null) handler.stop();
         if (eventHandler != null) eventHandler.removeCallbacksAndMessages(null);
         dpadHandlers = null;
@@ -93,7 +96,7 @@ public class KeyEventHandler {
         if (event.action == DOWN) if (handleKeyboardShortcuts(event.code)) return;
         if (mInput.getMouseEventHandler().handleAimTrigger(event.code, event.action)) return;
         handleMouseAimAndCamera(event.code, event.action);
-        int i = Utils.obtainIndex(event.code);
+        int i = event.code.startsWith("KEY_") ? Utils.obtainIndex(event.code) : -1;
         if (i > 0) {
             // A-Z and 0-9 keys
         } else { // CTRL, ALT, Arrow keys
@@ -119,8 +122,10 @@ public class KeyEventHandler {
 
         ArrayList<Key> keyList = mInput.getKeymapProfile().keys;
         for (Key key : keyList)
-            if (event.code.equals(key.code))
-                mInput.injectEvent(key.x + key.offset, key.y + key.offset, event.action, keyList.indexOf(key));
+            if (event.code.equals(key.code)) {
+                if (key.repeatIntervalMs > 0 && repeatKeys != null) repeatKeys.event(key, keyList.indexOf(key), event.action);
+                else mInput.injectEvent(key.x + key.offset, key.y + key.offset, event.action, keyList.indexOf(key));
+            }
 
         for (SwipeKeyHandler swipeKeyHandler : swipeKeyHandlers)
             swipeKeyHandler.handleEvent(event, mInput, pidProvider, eventHandler, keymapConfig.swipeDelayMs);
@@ -128,7 +133,7 @@ public class KeyEventHandler {
         Map<String, Macro> macroIdMap = mInput.getKeymapProfile().macroIdMap;
         if (!macroIdMap.isEmpty())
             macroIdMap.forEach((macroId, macro) -> {
-                if (event.code.equals("KEY_" + macro.triggerKey)) new Thread(() -> {
+                if (event.code.equals(xtr.keymapper.controller.ControllerBindings.editorCode(macro.triggerKey))) new Thread(() -> {
                     macro.runMacro(mInput, pidProvider.getPid(macroId));
                     pidProvider.releasePidFor(macroId);
                 }).start();
@@ -144,9 +149,10 @@ public class KeyEventHandler {
         KeyEvent event = new KeyEvent();
         // line: EV_KEY KEY_X DOWN
         String[] input_event = line.split("\\s+");
-        if (!input_event[1].equals("EV_KEY")) return null;
+        if (input_event.length < 4 || !input_event[1].equals("EV_KEY")) return null;
         event.code = input_event[2];
-        if (!event.code.contains("KEY_")) return null;
+        event.code = xtr.keymapper.controller.ControllerBindings.canonical(event.code);
+        if (!xtr.keymapper.controller.ControllerBindings.isBinding(event.code)) return null;
 
         switch (input_event[3]) {
             case "UP":
@@ -196,7 +202,7 @@ public class KeyEventHandler {
 
     private void handleMouseAimAndCamera(String keycode, int action) {
         Camera camera = mInput.getKeymapProfile().camera;
-        if (camera != null && keycode.equals(camera.triggerKeyCode)) {
+        if (camera != null && !camera.stick && keycode.equals(camera.triggerKeyCode)) {
             if (!camera.toggle || action == DOWN) mInput.getMouseEventHandler().triggerCamera();
             return;
         }

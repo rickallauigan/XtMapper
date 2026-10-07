@@ -25,6 +25,7 @@ public class MovableFloatingActionKey implements View.OnTouchListener {
     public final FloatingKeyBinding binding;
     private OnKeyRemoved callback;
     boolean isSwipeKey = false;
+    private String bindingCode;
 
     public interface OnKeyRemoved {
 
@@ -60,16 +61,19 @@ public class MovableFloatingActionKey implements View.OnTouchListener {
     }
 
     public String getData(){
-        return "KEY_" + getText() + " " + frameView.getX() + " " + frameView.getY() + " " + frameView.getPivotX();
+        return (bindingCode != null ? bindingCode : xtr.keymapper.controller.ControllerBindings.editorCode(getText())) + " " + frameView.getX() + " " + frameView.getY() + " " + frameView.getPivotX();
     }
 
     public void setText(CharSequence s) {
-        textView.setText(s);
+        bindingCode = xtr.keymapper.controller.ControllerBindings.isController(s.toString()) ? xtr.keymapper.controller.ControllerBindings.canonical(s.toString()) : null;
+        textView.setText(bindingCode != null ? xtr.keymapper.controller.ControllerBindings.label(bindingCode) : s);
     }
 
     public void setText(@StringRes int resId) {
         textView.setText(resId);
     }
+
+    public String getCodeText() { return bindingCode != null ? bindingCode : getText(); }
 
     public String getText(){
         return textView.getText().toString().toUpperCase();

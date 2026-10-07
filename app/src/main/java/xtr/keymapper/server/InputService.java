@@ -23,6 +23,7 @@ import xtr.keymapper.server.event.MouseEventHandler;
 public class InputService implements IInputInterface {
     private final MouseEventHandler mouseEventHandler;
     private final KeyEventHandler keyEventHandler;
+    private volatile xtr.keymapper.controller.ControllerDeviceMonitor controllers;
     private KeymapConfig keymapConfig;
     private KeymapProfile keymapProfile;
     private final Input input;
@@ -79,6 +80,7 @@ public class InputService implements IInputInterface {
         keyEventHandler = new KeyEventHandler(this);
         keyEventHandler.init();
         mouseEventHandler.activateDefaultMode();
+        startControllers();
     }
 
     public synchronized void injectEvent(float x, float y, int action, int pointerId) {
@@ -134,6 +136,7 @@ public class InputService implements IInputInterface {
             mouseEventHandler.init(screenWidth, screenHeight);
             keyEventHandler.init();
             mouseEventHandler.activateDefaultMode();
+            startControllers();
         }
         if (!isWaylandClient) {
             setMouseLock(!stopEvents);
@@ -231,6 +234,7 @@ public class InputService implements IInputInterface {
                 mouseEventHandler.init(screenWidth, screenHeight);
                 keyEventHandler.init();
                 mouseEventHandler.activateDefaultMode();
+                startControllers();
             }
         } catch (Exception e) {
             stop();
@@ -239,6 +243,7 @@ public class InputService implements IInputInterface {
     }
 
     public void stop() {
+        if (controllers != null) { controllers.stop(); controllers = null; }
         keyEventHandler.stop();
         mouseEventHandler.stop();
         synchronized (this) {
@@ -254,6 +259,17 @@ public class InputService implements IInputInterface {
             stopTouchpadDirect();
         else if (touchpadInputMode == KeymapConfig.TOUCHPAD_RELATIVE)
             stopTouchpadRelative();
+    }
+
+    private void startControllers() {
+        if (isWaylandClient || !keymapProfile.hasControllerBindings()) return;
+        controllers = new xtr.keymapper.controller.ControllerDeviceMonitor(this, screenWidth, screenHeight);
+        controllers.start();
+    }
+
+    public boolean onControllerEvent(String path, String line) {
+        xtr.keymapper.controller.ControllerDeviceMonitor current = controllers;
+        return current != null && current.event(path, line);
     }
 
     public native int openDevice(String device);
