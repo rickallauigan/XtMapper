@@ -251,13 +251,8 @@ class EditorUI(
      */
     override fun onKeyEvent(event: String) {
         // line: /dev/input/event3 EV_KEY KEY_X DOWN
-        val input_event =
-            event.split("\\s+".toRegex()).dropLastWhile { it.isEmpty() }.toTypedArray()
-        val code = input_event[2]
-
-        // Ignore non-key events
-        if (input_event[1] != "EV_KEY" || !code.contains("KEY_")) return
-        val key = input_event[2].substring(4)
+        val code = xtr.keymapper.controller.ControllerBindings.capture(event) ?: return
+        val key = if (code.startsWith("KEY_")) code.substring(4) else code
 
         // Incoming calls are not guaranteed to be executed on the main thread
         mHandler.post(Runnable {

@@ -24,7 +24,7 @@ public final class Key extends KeymapProfileElement {
     }
 
     public Key(String[] data) {
-        code = data[0];
+        code = xtr.keymapper.controller.ControllerBindings.canonical(data[0]);
         x = Float.parseFloat(data[1]);
         y = Float.parseFloat(data[2]);
         offset = Float.parseFloat(data[3]);

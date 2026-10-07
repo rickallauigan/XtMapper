@@ -93,7 +93,7 @@ public class KeyEventHandler {
         if (event.action == DOWN) if (handleKeyboardShortcuts(event.code)) return;
         if (mInput.getMouseEventHandler().handleAimTrigger(event.code, event.action)) return;
         handleMouseAimAndCamera(event.code, event.action);
-        int i = Utils.obtainIndex(event.code);
+        int i = event.code.startsWith("KEY_") ? Utils.obtainIndex(event.code) : -1;
         if (i > 0) {
             // A-Z and 0-9 keys
         } else { // CTRL, ALT, Arrow keys
@@ -128,7 +128,7 @@ public class KeyEventHandler {
         Map<String, Macro> macroIdMap = mInput.getKeymapProfile().macroIdMap;
         if (!macroIdMap.isEmpty())
             macroIdMap.forEach((macroId, macro) -> {
-                if (event.code.equals("KEY_" + macro.triggerKey)) new Thread(() -> {
+                if (event.code.equals(xtr.keymapper.controller.ControllerBindings.editorCode(macro.triggerKey))) new Thread(() -> {
                     macro.runMacro(mInput, pidProvider.getPid(macroId));
                     pidProvider.releasePidFor(macroId);
                 }).start();
@@ -144,9 +144,10 @@ public class KeyEventHandler {
         KeyEvent event = new KeyEvent();
         // line: EV_KEY KEY_X DOWN
         String[] input_event = line.split("\\s+");
-        if (!input_event[1].equals("EV_KEY")) return null;
+        if (input_event.length < 4 || !input_event[1].equals("EV_KEY")) return null;
         event.code = input_event[2];
-        if (!event.code.contains("KEY_")) return null;
+        event.code = xtr.keymapper.controller.ControllerBindings.canonical(event.code);
+        if (!xtr.keymapper.controller.ControllerBindings.isBinding(event.code)) return null;
 
         switch (input_event[3]) {
             case "UP":

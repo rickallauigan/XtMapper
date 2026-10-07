@@ -38,7 +38,7 @@ public class Key extends EditorUiComponent {
             getCallback().removeComponent(this, floatingActionKey.frameView);
         }, getCallback().getKeysContainerView());
 
-        floatingKey.setText(key.code.substring(4));
+        floatingKey.setText(key.code.startsWith("KEY_") ? key.code.substring(4) : key.code);
         floatingKey.frameView.animate()
                 .x(key.x)
                 .y(key.y)

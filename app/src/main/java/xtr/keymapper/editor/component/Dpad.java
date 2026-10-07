@@ -113,10 +113,10 @@ public class Dpad extends EditorUiComponent {
 
     private void setDpadKeys(DpadBinding binding, DpadKeyCodes dpadKeycodes) {
         // strip KEY_
-        binding.keyUp.setText(dpadKeycodes.Up.substring(4));
-        binding.keyDown.setText(dpadKeycodes.Down.substring(4));
-        binding.keyLeft.setText(dpadKeycodes.Left.substring(4));
-        binding.keyRight.setText(dpadKeycodes.Right.substring(4));
+        binding.keyUp.setText((dpadKeycodes.Up.startsWith("KEY_") ? dpadKeycodes.Up.substring(4) : dpadKeycodes.Up));
+        binding.keyDown.setText((dpadKeycodes.Down.startsWith("KEY_") ? dpadKeycodes.Down.substring(4) : dpadKeycodes.Down));
+        binding.keyLeft.setText((dpadKeycodes.Left.startsWith("KEY_") ? dpadKeycodes.Left.substring(4) : dpadKeycodes.Left));
+        binding.keyRight.setText((dpadKeycodes.Right.startsWith("KEY_") ? dpadKeycodes.Right.substring(4) : dpadKeycodes.Right));
         for (TextView key : new TextView[]{binding.keyUp, binding.keyDown, binding.keyRight, binding.keyLeft}) {
             key.setOnClickListener(
                     view -> getCallback().setOnKeyListener(k -> ((TextView)view).setText(k)));

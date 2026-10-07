@@ -32,5 +32,5 @@ fun onMouseClick(v: View?, event: MotionEvent?): Boolean {
 }
 
 fun keyCodePrefix(e: EditText?): String {
-    return "KEY_" + e!!.getText()
+    return xtr.keymapper.controller.ControllerBindings.editorCode(e!!.text.toString())
 }

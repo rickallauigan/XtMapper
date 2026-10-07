@@ -31,7 +31,7 @@ reference resources and do not establish this fork's compatibility.
 
 | Device | Keyboard / mouse | MLBB profile | GameSir | Status |
 | --- | --- | --- | --- | --- |
-| Samsung Galaxy S10e | Evision RGB Keyboard + Lenovo M300 tested | v0.1 tested in Hero Training | Planned; unvalidated | Primary development/test device |
+| Samsung Galaxy S10e | Evision RGB Keyboard + Lenovo M300 tested | v0.1 tested in Hero Training | G8 core buttons and analog skill aiming tested in Hero Training | Primary development/test device |
 | Huawei Mate 9 | Planned; unvalidated | Planned | Planned; unvalidated | Future gaming-device target |
 | Other Android devices | Upstream/device dependent; unvalidated by this fork | Community testing welcome | Unvalidated by this fork | Community testing welcome |
 
@@ -195,3 +195,7 @@ You should have received a copy of the GNU General Public License
 along with this program. If not, see https://www.gnu.org/licenses/.
 ```
 Do not publish unofficial APKs to the play store. It hurts open source projects like ours.
+
+GameSir G8 implementation and the shared-anchor controller profile are described
+in [the S10e G8 guide](profiles/mlbb/samsung-s10e/GAMESIR-G8.md). Controller
+gameplay acceptance is separate from the physically validated KBM setup.

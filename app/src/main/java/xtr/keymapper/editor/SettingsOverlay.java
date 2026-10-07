@@ -196,7 +196,7 @@ public class SettingsOverlay {
 
     private void loadKeyboardShortcuts(){
         // Strips KEY_ from start
-        Function<String, String> removekeyPrefix = key -> key.length() > 4 ? key.substring(4) :  " ";
+        Function<String, String> removekeyPrefix = key -> key.startsWith("KEY_") ? key.substring(4) : key;
 
         binding.pauseResume.setText(removekeyPrefix.apply(keymapConfig.pauseResumeShortcutKey));
         binding.launchEditor.setText(removekeyPrefix.apply(keymapConfig.launchEditorShortcutKey));

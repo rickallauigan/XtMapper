@@ -21,10 +21,10 @@ public class DpadKeyCodes implements Parcelable {
     }
 
     public DpadKeyCodes(DpadBinding binding){
-        Up = "KEY_" + binding.keyUp.getText();
-        Down = "KEY_" + binding.keyDown.getText();
-        Left = "KEY_" + binding.keyLeft.getText();
-        Right = "KEY_" + binding.keyRight.getText();
+        Up = xtr.keymapper.controller.ControllerBindings.editorCode(binding.keyUp.getText().toString());
+        Down = xtr.keymapper.controller.ControllerBindings.editorCode(binding.keyDown.getText().toString());
+        Left = xtr.keymapper.controller.ControllerBindings.editorCode(binding.keyLeft.getText().toString());
+        Right = xtr.keymapper.controller.ControllerBindings.editorCode(binding.keyRight.getText().toString());
     }
 
     protected DpadKeyCodes(Parcel in) {

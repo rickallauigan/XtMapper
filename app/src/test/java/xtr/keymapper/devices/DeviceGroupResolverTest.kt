@@ -19,6 +19,14 @@ class DeviceGroupResolverTest {
         assertEquals(device(1, "", vendor = 0, product = 0).persistentIdentity,
             device(987, "", vendor = 0, product = 0).persistentIdentity)
     }
+    @Test fun mergedControllerTouchpadAndSensorIsOneLogicalGamepad() {
+        val sources = InputDevice.SOURCE_GAMEPAD or InputDevice.SOURCE_JOYSTICK or
+            InputDevice.SOURCE_KEYBOARD or InputDevice.SOURCE_MOUSE or InputDevice.SOURCE_TOUCHPAD or InputDevice.SOURCE_SENSOR
+        val g8 = HardwareDevice("Sony Interactive Entertainment GameSir-G8", DeviceType.MOUSE, true,
+            69, "stable-g8", 0x054c, 0x0ce6, sources, InputDevice.KEYBOARD_TYPE_NON_ALPHABETIC)
+        assertEquals(DeviceType.GAMEPAD, gamingLogicalDevices(listOf(g8)).single().type)
+        assertEquals(setOf("stable-g8"), gamingLogicalDevices(listOf(g8)).single().identities)
+    }
     @Test fun mousePrecedesKeyboardAndGamepad() {
         val sources = InputDevice.SOURCE_KEYBOARD or InputDevice.SOURCE_GAMEPAD
         assertEquals(DeviceType.MOUSE, DeviceClassification.classify(

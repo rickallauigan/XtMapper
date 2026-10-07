@@ -39,3 +39,8 @@ LOCAL_MODULE    := touchpad_relative
 LOCAL_SRC_FILES := $(JNI_SRC_PATH)/touchpad_relative.cpp
 LOCAL_SHARED_LIBRARIES := evdev_common
 include $(BUILD_SHARED_LIBRARY)
+
+include $(CLEAR_VARS)
+LOCAL_MODULE := controller_device
+LOCAL_SRC_FILES := $(JNI_SRC_PATH)/controller_device.c
+include $(BUILD_SHARED_LIBRARY)

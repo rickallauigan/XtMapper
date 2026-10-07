@@ -32,7 +32,7 @@ public final class HeldAimHandler {
     public boolean trigger(String code, int action) {
         for (int i = 0; i < configs.size(); i++) {
             AimKey config = configs.get(i);
-            if (!config.code.equals(code)) continue;
+            if (config.stick || !config.code.equals(code)) continue;
             if (action == DOWN && !held.containsKey(code)) {
                 // Aliases for the same HUD control share one touch, so E + RMB cannot double-press it.
                 State state = held.values().stream().filter(s -> s.config.x == config.x && s.config.y == config.y)

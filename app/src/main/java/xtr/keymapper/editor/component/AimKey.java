@@ -15,7 +15,7 @@ public final class AimKey extends EditorUiComponent {
         this.config = config;
         marker = new MovableFloatingActionKey(context,
                 key -> callback.removeComponent(this, key.frameView), callback.getKeysContainerView());
-        marker.setText("Aim " + config.code);
+        marker.setText("Aim " + xtr.keymapper.controller.ControllerBindings.label(config.code));
         marker.frameView.setX(config.x);
         marker.frameView.setY(config.y);
     }

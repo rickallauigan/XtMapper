@@ -18,8 +18,8 @@ public class SwipeKeyHandler {
     private final String keycode2;
 
     public SwipeKeyHandler(SwipeKey key){
-        this.keycode1 = "KEY_" + key.key1.code;
-        this.keycode2 = "KEY_" + key.key2.code;
+        this.keycode1 = xtr.keymapper.controller.ControllerBindings.editorCode(key.key1.code);
+        this.keycode2 = xtr.keymapper.controller.ControllerBindings.editorCode(key.key2.code);
         float midpointX = (key.key1.x + key.key2.x) / 2;
         float midpointY = (key.key1.y + key.key2.y) / 2;
         swipeEvent1 = new SwipeEvent(midpointX, midpointY, key.key1.x, key.key1.y);
