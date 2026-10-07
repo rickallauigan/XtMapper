@@ -1,66 +1,166 @@
 name: Build and Release APK
 
+run-name: Release APK ${{ github.ref_name }}
+
 on:
   workflow_dispatch:
+    inputs:
+      tag:
+        description: Release tag (for example v0.1.0-g8-beta.1)
+        required: true
+        default: v0.1.0-g8-beta.1
+        type: string
+      prerelease:
+        description: Mark this GitHub Release as a pre-release
+        required: true
+        default: true
+        type: boolean
   push:
     tags:
       - "v*"
+    branches:
+      - dev
+
+permissions:
+  contents: write
 
 jobs:
-  build-docs:
-    uses: ./.github/workflows/build-docs.yml
-  
-  build:
-    needs:
-      - build-docs
-      
+  build-and-release:
+    # Normal dev pushes keep using build-apk.yml. A dev release is created only
+    # when the merge/commit message explicitly contains [release-apk].
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      startsWith(github.ref, 'refs/tags/') ||
+      (github.ref == 'refs/heads/dev' && contains(github.event.head_commit.message, '[release-apk]'))
+
     runs-on: ubuntu-latest
+
     steps:
-    - uses: actions/checkout@v4
+      - name: Check out source
+        uses: actions/checkout@v4
 
-    - name: Set up JDK 21
-      uses: actions/setup-java@v4
-      with:
-        java-version: '21'
-        distribution: 'temurin'
-        cache: gradle
+      - name: Set up JDK 21
+        uses: actions/setup-java@v4
+        with:
+          java-version: "21"
+          distribution: temurin
+          cache: gradle
 
-    - name: Grant execute permission for gradlew
-      run: chmod +x gradlew
+      - name: Resolve release metadata
+        id: release
+        shell: bash
+        run: |
+          set -euo pipefail
 
-    - name: Write key
-      run: |
-        if [ ! -z "${{ secrets.KEYSTORE }}" ]; then
+          if [[ "${GITHUB_EVENT_NAME}" == "workflow_dispatch" ]]; then
+            tag="${{ inputs.tag }}"
+            prerelease="${{ inputs.prerelease }}"
+          elif [[ "${GITHUB_REF_TYPE}" == "tag" ]]; then
+            tag="${GITHUB_REF_NAME}"
+            case "${tag}" in
+              *-alpha*|*-beta*|*-rc*|*-dev*) prerelease=true ;;
+              *) prerelease=false ;;
+            esac
+          else
+            tag="v0.1.0-g8-dev.${GITHUB_RUN_NUMBER}"
+            prerelease=true
+          fi
+
+          if [[ ! "${tag}" =~ ^v[0-9A-Za-z._-]+$ ]]; then
+            echo "Invalid release tag: ${tag}" >&2
+            exit 1
+          fi
+
+          echo "tag=${tag}" >> "${GITHUB_OUTPUT}"
+          echo "prerelease=${prerelease}" >> "${GITHUB_OUTPUT}"
+
+      - name: Grant execute permission
+        run: |
+          chmod +x gradlew
+          chmod +x app/src/test/native/run-controller-probe-tests.sh
+          chmod +x app/src/test/native/run-mouse-reader-tests.sh
+
+      - name: Validate generated GameSir profile
+        run: python3 profiles/mlbb/samsung-s10e/generate-gamesir-profile.py --check
+
+      - name: Run native input regression tests
+        run: |
+          app/src/test/native/run-controller-probe-tests.sh
+          app/src/test/native/run-mouse-reader-tests.sh
+
+      - name: Test and build installable debug APK
+        run: ./gradlew testDebugUnitTest app:assembleDebug
+
+      - name: Prepare release files
+        id: files
+        shell: bash
+        run: |
+          set -euo pipefail
+          tag="${{ steps.release.outputs.tag }}"
+          mkdir -p dist
+
+          apk="dist/XtMapper-MLBB-${tag}-debug.apk"
+          cp app/build/outputs/apk/debug/app-debug.apk "${apk}"
+
+          (
+            cd dist
+            sha256sum "$(basename "${apk}")" > SHA256SUMS.txt
+          )
+
           {
-            echo storePassword='${{ secrets.KEYSTORE_PASSWORD }}'
-            echo keyPassword='${{ secrets.KEY_PASSWORD }}'
-            echo keyAlias='${{ secrets.KEY_ALIAS }}'
-            echo storeFile='../keystore.jks'
-          } > keystore.properties
-          echo '${{ secrets.KEYSTORE }}' | base64 -d > keystore.jks
-        fi
+            echo "## XtMapper MLBB community-fork build"
+            echo
+            echo "- Release: \`${tag}\`"
+            echo "- Commit: \`${GITHUB_SHA}\`"
+            echo "- Build: installable Android debug APK (debug-signed)"
+            echo "- Target work: Samsung Galaxy S10e + MLBB + GameSir G8 / keyboard-mouse profiles"
+            echo
+            echo "This APK is produced automatically from the community fork. GameSir G8 core buttons,"
+            echo "native left-stick movement, right-stick skill aiming, camera behavior, and the documented"
+            echo "S10e profile have project-specific validation; optional mappings and other devices may remain untested."
+            echo
+            echo "See \`profiles/mlbb/samsung-s10e/GAMESIR-G8.md\` and \`docs/S10E.md\` for current"
+            echo "physical-test status and limitations."
+          } > release-notes.md
 
-    - name: Download artifacts
-      uses: actions/download-artifact@v4
+          echo "apk=${apk}" >> "${GITHUB_OUTPUT}"
 
-    - name: Move artifact to assets
-      run: |
-          cd ./github-pages
-          tar xvf artifact.tar && rm artifact.tar
-          cd ../
-          mkdir ./app/src/main/assets
-          mv ./github-pages ./app/src/main/assets/XtMapper-docs
+      - name: Upload workflow artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: XtMapper-MLBB-${{ steps.release.outputs.tag }}
+          path: |
+            ${{ steps.files.outputs.apk }}
+            dist/SHA256SUMS.txt
+          if-no-files-found: error
 
-    - name: Build with Gradle
-      run: ./gradlew app:assembleRelease
-        
-    - name: Upload binaries to release
-      uses: svenstaro/upload-release-action@v2
-      with:
-        repo_token: ${{ secrets.GITHUB_TOKEN }}
-        file: 'app/build/outputs/apk/release/*.apk'
-        asset_name: app-release.zip
-        tag: v2.5.0
-        overwrite: true
-        file_glob: true          
-        draft: true
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.release.outputs.tag }}
+          PRERELEASE: ${{ steps.release.outputs.prerelease }}
+          APK: ${{ steps.files.outputs.apk }}
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if gh release view "${TAG}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "Release ${TAG} already exists. Use a new tag instead of replacing a published APK." >&2
+            exit 1
+          fi
+
+          args=(
+            release create "${TAG}"
+            "${APK}"
+            dist/SHA256SUMS.txt
+            --repo "${GITHUB_REPOSITORY}"
+            --target "${GITHUB_SHA}"
+            --title "XtMapper MLBB ${TAG}"
+            --notes-file release-notes.md
+          )
+
+          if [[ "${PRERELEASE}" == "true" ]]; then
+            args+=(--prerelease)
+          fi
+
+          gh "${args[@]}"

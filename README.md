@@ -11,8 +11,8 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/Xtr126/XtMapper/releases">
-     <img src="https://img.shields.io/github/downloads/Xtr126/XtMapper/total.svg?style=for-the-badge&logo=android" height="30px"/>
+  <a href="https://github.com/rickallauigan/XtMapper/releases">
+     <img src="https://img.shields.io/github/downloads/rickallauigan/XtMapper/total.svg?style=for-the-badge&logo=android" height="30px"/>
   </a>
  </p>
 
@@ -44,6 +44,19 @@ hero, device, or peripheral. No performance or latency improvements are claimed.
 - [Galaxy S10e workflow and validation](docs/S10E.md)
 - [Huawei Mate 9 planning](docs/MATE9.md)
 - [Roadmap](docs/ROADMAP.md)
+
+### Downloadable APK builds
+
+Installable testing APKs for this community fork are published on the
+[GitHub Releases page](https://github.com/rickallauigan/XtMapper/releases).
+Development releases are clearly marked as pre-releases and use Android debug
+signing; each release includes `SHA256SUMS.txt` for integrity checking.
+
+The release workflow runs the controller/native regression tests, unit tests,
+GameSir profile consistency check, and `app:assembleDebug` before publishing
+an APK. A successful build does not imply that every mapping or device has been
+physically gameplay-tested; see the S10e/GameSir documentation for that status.
+
 
 ### Completed foundation
 
@@ -86,11 +99,16 @@ while moving, a 250 ms mouse pause resumes hero-follow. Camera travel is limited
 by the game's battlefield drag and screen dimensions. See the profile notes
 for exact validation and limitations.
 
-## Planned controller investigation
+## GameSir controller support
 
-Investigate the **GameSir G8 Galileo** and **GameSir G8+**, including their
-behavior with XtMapper and game-specific mappings. Controller support is not
-yet validated in this fork, including either GameSir device.
+The **GameSir G8 Galileo** now has a dedicated S10e MLBB profile with tested
+core buttons, native left-stick movement, right-stick analog skill aiming,
+camera behavior, repeat Basic Attack, and reconnect/service-restart recovery.
+See [the G8 profile guide](profiles/mlbb/samsung-s10e/GAMESIR-G8.md) for the
+exact physical acceptance record and remaining unbound/untested controls.
+
+The **GameSir G8+** remains unvalidated; its transport, descriptors, and input
+mode may differ from the USB G8.
 
 ## Huawei Mate 9 — future gaming target
 
