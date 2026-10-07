@@ -40,9 +40,15 @@ int main(void) {
     assert(captured[2]==0&&captured[3]==255&&captured[4]==128&&captured[7]==128);
     assert(Java_xtr_keymapper_controller_ControllerDeviceMonitor_identity(&env,NULL,(jstring)path));
     assert(array_length==2);jlong old_inode=captured[1];
-    unlink(path);fd=open(path,O_CREAT|O_RDWR,0600);assert(fd>=0);close(fd);
+    /* Keep both files alive at once so POSIX cannot legally reuse the inode.
+       GitHub-hosted filesystems may immediately recycle an inode after unlink(). */
+    char replacement[]="/tmp/xtmapper-controller-probe-replacement-XXXXXX";
+    fd=mkstemp(replacement);assert(fd>=0);close(fd);
+    assert(Java_xtr_keymapper_controller_ControllerDeviceMonitor_identity(&env,NULL,(jstring)replacement));
+    jlong replacement_inode=captured[1];assert(replacement_inode!=old_inode);
+    assert(rename(replacement,path)==0);
     assert(Java_xtr_keymapper_controller_ControllerDeviceMonitor_identity(&env,NULL,(jstring)path));
-    assert(captured[1]!=old_inode);unlink(path);
+    assert(captured[1]==replacement_inode&&captured[1]!=old_inode);unlink(path);
     assert(!Java_xtr_keymapper_controller_ControllerDeviceMonitor_identity(&env,NULL,(jstring)path));
     assert(!Java_xtr_keymapper_controller_ControllerDeviceMonitor_probe(&env,NULL,(jstring)path));
     puts("controller capability probe tests passed");
