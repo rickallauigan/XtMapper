@@ -10,6 +10,7 @@ import xtr.keymapper.keymap.KeymapConfig;
 
 public class Key extends EditorUiComponent {
     private final MovableFloatingActionKey floatingKey;
+    private int repeatIntervalMs;
 
     public Key(EditorUiComponentCallback callback, Context context, float x, float y) {
         super(callback, context, x, y);
@@ -17,17 +18,19 @@ public class Key extends EditorUiComponent {
         key.code = "KEY_X";
         key.x = x;
         key.y = y;
+        repeatIntervalMs = key.repeatIntervalMs;
         floatingKey = addKey(key);
     }
 
     @Override
     public String getDataLine() {
-        return floatingKey.getData();
+        return floatingKey.getData() + (repeatIntervalMs > 0 ? " " + repeatIntervalMs : "");
     }
 
 
     public Key(EditorUiComponentCallback callback, Context context, xtr.keymapper.keymap.element.Key key) {
         super(callback, context, key.x, key.y);
+        repeatIntervalMs = key.repeatIntervalMs;
         floatingKey = addKey(key);
     }
 

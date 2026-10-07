@@ -46,7 +46,7 @@ public class KeymapProfile implements Parcelable {
         if (swipeKeys.stream().anyMatch(k -> controller.test(k.key1.code) || controller.test(k.key2.code))) return true;
         for (Dpad dpad : dpadArray) if (dpad != null && (controller.test(dpad.keycodes.Up)
                 || controller.test(dpad.keycodes.Down) || controller.test(dpad.keycodes.Left) || controller.test(dpad.keycodes.Right))) return true;
-        return (camera != null && controller.test(camera.triggerKeyCode)) || macroIdMap.values().stream().anyMatch(m -> controller.test(m.triggerKey));
+        return (camera != null && (camera.stick || controller.test(camera.triggerKeyCode))) || macroIdMap.values().stream().anyMatch(m -> controller.test(m.triggerKey));
     }
 
     public void scale(float newWidth, float newHeight) {

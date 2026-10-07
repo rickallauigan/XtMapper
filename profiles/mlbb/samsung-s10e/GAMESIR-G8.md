@@ -7,7 +7,7 @@ and run `--check` after changing shared action positions. No game coordinates
 are embedded in event handlers.
 
 Tested build: the controller implementation commit in the current GameSir PR;
-APK SHA-256 `35e35a40655e38a3b64ba44ce9c336c41457687c78b9d7e2c7ab543ff2401856`.
+APK SHA-256 `743a7b971497cec7f14e7eb3b58704869e54d5ddda33c721bd9780a36698ba87`.
 
 ## Hardware and evidence
 
@@ -29,7 +29,7 @@ APK SHA-256 `35e35a40655e38a3b64ba44ce9c336c41457687c78b9d7e2c7ab543ff2401856`.
 | Physical input | Linux input | MLBB action | Default profile |
 | --- | --- | --- | --- |
 | Left stick | ABS_X / ABS_Y | Native hero movement | Untouched; no synthetic joystick |
-| A | BTN_GAMEPAD | Basic Attack | KBM left-click anchor |
+| A | BTN_GAMEPAD | Basic Attack; hold to repeat | KBM left-click anchor, 150 ms |
 | B | BTN_EAST | Regen | KBM G anchor |
 | X | BTN_WEST | Recall | KBM B anchor |
 | Y | BTN_NORTH | Active equipment / Roam active | Configurable; no measured anchor |
@@ -37,7 +37,7 @@ APK SHA-256 `35e35a40655e38a3b64ba44ce9c336c41457687c78b9d7e2c7ab543ff2401856`.
 | RT | BTN_TR2 | Skill 2 + right-stick aim | KBM E center |
 | LB | BTN_TL | Ultimate + right-stick aim | KBM R center |
 | LT | BTN_TL2 | Battle Spell + right-stick aim | KBM F anchor |
-| Right stick | ABS_RX / ABS_RY | Aim most recently held skill/spell | Absolute analog vector |
+| Right stick | ABS_RX / ABS_RY | Aim held skill/spell; otherwise camera pan | Absolute aim / camera velocity |
 | D-pad up | ABS_HAT0Y = -1 → DPAD_UP | Attack Turret | Configurable; no measured anchor |
 | D-pad down | ABS_HAT0Y = +1 → DPAD_DOWN | Attack Minion | Configurable; no measured anchor |
 | D-pad left | ABS_HAT0X = -1 → DPAD_LEFT | Shop / secondary utility | Configurable; no measured anchor |
@@ -112,6 +112,10 @@ Human Hero Training checks on the installed debug build:
 | Native movement + RB aim/cast + A attack, clean release | PASS after service restart |
 | Service restart + reconnect recovery, movement/RB/A smoke | PASS |
 | Physical touchscreen camera drag with service active | PASS |
+| Right-stick camera pan and center release | PASS |
+| Hold A repeated attack and release | PASS |
+| Camera → RB skill aim/cast → camera priority | PASS |
+| Native movement + held-A repeat + camera, clean release | PASS |
 | Directional Battle Spell | Not tested |
 | Optional unbound utility controls | Not tested |
 
@@ -133,8 +137,11 @@ removed those pauses; the user then accepted accurate smooth aiming/casting.
   fresh human acceptance for this APK/profile.
 - Y, turret/minion targeting, Shop, L3, Select, and cancel-cast have no
   measured anchors in the tested KBM profile and remain unbound.
-- Right-stick camera panning is intentionally deferred. The existing KBM
-  camera implementation/profile is preserved; the controller stick is for aim.
+- Right-stick camera uses the measured KBM camera anchor. Pan while displaced;
+  center to release and restore hero following. Held skills take priority.
+  Display edges limit a single drag; center and move again to start a new drag.
+  Camera pan/center release, held-A repeat/release, and RB skill priority/return
+  to camera passed human acceptance.
 - Stock MLBB can still react to native controller buttons/axes. XtMapper does
   not grab the controller or suppress native left-stick/system behavior.
   Physical tests must detect any unintended native button side effects.

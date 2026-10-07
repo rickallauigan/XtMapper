@@ -11,6 +11,7 @@ public final class Key extends KeymapProfileElement {
     public float x;
     public float y;
     public final float offset;
+    public int repeatIntervalMs;
 
     @Override
     public void scale(float scaleX, float scaleY) {
@@ -28,6 +29,7 @@ public final class Key extends KeymapProfileElement {
         x = Float.parseFloat(data[1]);
         y = Float.parseFloat(data[2]);
         offset = Float.parseFloat(data[3]);
+        if (data.length == 5) repeatIntervalMs = Integer.parseInt(data[4]);
     }
 
     private Key(Parcel in) {
@@ -35,6 +37,7 @@ public final class Key extends KeymapProfileElement {
         x = in.readFloat();
         y = in.readFloat();
         offset = in.readFloat();
+        repeatIntervalMs = in.readInt();
     }
 
     public static final Creator<Key> CREATOR = new Creator<>() {
@@ -60,5 +63,6 @@ public final class Key extends KeymapProfileElement {
         dest.writeFloat(x);
         dest.writeFloat(y);
         dest.writeFloat(offset);
+        dest.writeInt(repeatIntervalMs);
     }
 }

@@ -350,13 +350,13 @@ public class MappingRuntimeTest {
     @Test public void controllerMonitorStopPauseAndReloadReleasePointersWithMouseAndKeyboard() throws Exception {
         for (String lifecycle : List.of("stop", "pause", "reload")) {
             Recorder recorder = new Recorder();
-            InputService service = service("STICK_AIM BTN_TR 500 600 180 1 1 .15 0\n" + AIM,
+            InputService service = service("BTN_GAMEPAD 100 100 0 150\nSTICK_AIM BTN_TR 500 600 180 1 1 .15 0\n" + AIM,
                 ProfileConfiguration.parse("KEY_F 400 500 0"), recorder);
             var monitor = new xtr.keymapper.controller.ControllerDeviceMonitor(service, 2280, 1080,
                 () -> java.util.Map.of("/dev/input/event99", new long[]{1,2,0,255,128,0,255,128}));
             var field = InputService.class.getDeclaredField("controllers");field.setAccessible(true);field.set(service,monitor);
             monitor.start();
-            service.injectEvent(100,100,1,0);
+            monitor.event("/dev/input/event99","EV_KEY BTN_GAMEPAD DOWN");
             service.getMouseEventHandler().handleAimTrigger("KEY_Q",1);
             monitor.event("/dev/input/event99","EV_KEY BTN_TR DOWN");
             assertEquals(3,recorder.actions.size());

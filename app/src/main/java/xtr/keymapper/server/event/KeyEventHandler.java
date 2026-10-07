@@ -35,6 +35,7 @@ public class KeyEventHandler {
     private final IInputInterface mInput;
     private HandlerThread mHandlerThread;
     private Handler eventHandler;
+    private RepeatKeyHandler repeatKeys;
 
     public KeyEventHandler(IInputInterface mInput) {
         this.mInput = mInput;
@@ -44,6 +45,7 @@ public class KeyEventHandler {
         mHandlerThread = new HandlerThread("events");
         mHandlerThread.start();
         eventHandler = new Handler(mHandlerThread.getLooper());
+        repeatKeys = new RepeatKeyHandler(eventHandler, mInput::injectEvent);
 
         KeymapConfig keymapConfig = mInput.getKeymapConfig();
         KeymapProfile profile = mInput.getKeymapProfile();
@@ -66,6 +68,7 @@ public class KeyEventHandler {
     }
 
     public void stop() {
+        if (repeatKeys != null) { repeatKeys.reset(); repeatKeys = null; }
         if (dpadHandlers != null) for (DpadHandler handler : dpadHandlers) if (handler != null) handler.stop();
         if (eventHandler != null) eventHandler.removeCallbacksAndMessages(null);
         dpadHandlers = null;
@@ -119,8 +122,10 @@ public class KeyEventHandler {
 
         ArrayList<Key> keyList = mInput.getKeymapProfile().keys;
         for (Key key : keyList)
-            if (event.code.equals(key.code))
-                mInput.injectEvent(key.x + key.offset, key.y + key.offset, event.action, keyList.indexOf(key));
+            if (event.code.equals(key.code)) {
+                if (key.repeatIntervalMs > 0 && repeatKeys != null) repeatKeys.event(key, keyList.indexOf(key), event.action);
+                else mInput.injectEvent(key.x + key.offset, key.y + key.offset, event.action, keyList.indexOf(key));
+            }
 
         for (SwipeKeyHandler swipeKeyHandler : swipeKeyHandlers)
             swipeKeyHandler.handleEvent(event, mInput, pidProvider, eventHandler, keymapConfig.swipeDelayMs);
@@ -197,7 +202,7 @@ public class KeyEventHandler {
 
     private void handleMouseAimAndCamera(String keycode, int action) {
         Camera camera = mInput.getKeymapProfile().camera;
-        if (camera != null && keycode.equals(camera.triggerKeyCode)) {
+        if (camera != null && !camera.stick && keycode.equals(camera.triggerKeyCode)) {
             if (!camera.toggle || action == DOWN) mInput.getMouseEventHandler().triggerCamera();
             return;
         }

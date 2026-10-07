@@ -54,6 +54,8 @@ public final class ControllerAimHandler {
         }
         return false;
     }
+    public synchronized boolean isActive() { return !held.isEmpty(); }
+
     public synchronized void axes(float x, float y) {
         this.x = x; this.y = y;
         // Latest held action owns the stick. Other held pointers remain independently releasable.

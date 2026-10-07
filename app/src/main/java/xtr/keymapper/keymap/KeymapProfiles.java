@@ -183,6 +183,7 @@ public class KeymapProfiles {
                     if (data.length > 6) profile.swipeKeys.add(new SwipeKey(data));
                     break;
 
+                case "STICK_CAMERA":
                 case Camera.TAG:
                     if (data.length >= 4)
                         profile.camera = new Camera(data);
@@ -194,7 +195,7 @@ public class KeymapProfiles {
                     break;
 
                 default: {
-                    if (data.length == 4 && xtr.keymapper.controller.ControllerBindings.isBinding(data[0])) {
+                    if ((data.length == 4 || data.length == 5) && xtr.keymapper.controller.ControllerBindings.isBinding(data[0])) {
                         final Key key = new Key(data);
                         profile.keys.add(key);
                     }

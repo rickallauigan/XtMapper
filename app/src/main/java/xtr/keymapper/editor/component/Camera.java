@@ -48,6 +48,12 @@ public class Camera extends EditorUiComponent {
     }
 
     public void showSettingsDialog() {
+        if (getCamera().stick) {
+            AlertDialog dialog = new AlertDialog.Builder(getContext()).setMessage("Right-stick camera: edit STICK_CAMERA sensitivity/dead zone in profile configuration. Drag this marker to change its anchor.").setPositiveButton(R.string.ok, null).create();
+            if (getCallback().isOverlayOpen()) dialog.getWindow().setType(Build.VERSION.SDK_INT >= Build.VERSION_CODES.O ? WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY : WindowManager.LayoutParams.TYPE_SYSTEM_ALERT);
+            dialog.show();
+            return;
+        }
         AlertDialog.Builder builder = new AlertDialog.Builder(getContext());
         CameraConfigBinding binding = CameraConfigBinding.inflate(getLayoutInflater(), null, false);
 

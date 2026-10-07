@@ -14,13 +14,15 @@ def generate():
     aim = {line[1]: line for line in lines if line[0] == 'AIM_KEY'}
     result = [' '.join(tags['APPLICATION']), ' '.join(tags['SCREENSIZE']), 'ENABLED']
     for button, source in [('BTN_GAMEPAD','MOUSE_LEFT'),('BTN_EAST','KEY_G'),('BTN_WEST','KEY_B')]:
-        result.append(f'{button} {tags[source][1]} {tags[source][2]} 0')
+        result.append(f'{button} {tags[source][1]} {tags[source][2]} 0' + (' 150' if button == 'BTN_GAMEPAD' else ''))
     for button, source in [('BTN_TR','KEY_Q'),('BTN_TR2','KEY_E'),('BTN_TL','KEY_R')]:
         c = aim[source]
         result.append(f'STICK_AIM {button} {c[2]} {c[3]} {c[4]} 1 1 0.15 0')
     # Battle spell reuses its measured fixed anchor and KBM's accepted skill range.
     c = tags['KEY_F']
     result.append(f'STICK_AIM BTN_TL2 {c[1]} {c[2]} {aim["KEY_Q"][4]} 1 1 0.15 0')
+    c = tags['CAMERA']
+    result.append(f'STICK_CAMERA {c[1]} {c[2]} {c[3]} {c[4]} 0.15')
     extra_path = ROOT / 'mlbb-extra-anchors.json'
     if extra_path.exists():
         for binding in json.loads(extra_path.read_text()).get('bindings', []):

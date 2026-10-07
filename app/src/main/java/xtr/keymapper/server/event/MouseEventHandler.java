@@ -100,7 +100,7 @@ public class MouseEventHandler {
         KeymapProfile profile = mInput.getKeymapProfile();
         if (profile.mouseAimConfig != null)
             mouseAimHandler = new MouseAimHandler(profile.mouseAimConfig);
-        if (profile.camera != null)
+        if (profile.camera != null && !profile.camera.stick)
             mouseCameraHandler = new MouseAimHandler(profile.camera);
         if (profile.mouseWalk != null)
             mouseWalkHandler = new MouseWalkHandler(profile.mouseWalk);
@@ -157,7 +157,7 @@ public class MouseEventHandler {
     }
 
     public void activateDefaultMode() {
-        if (mInput.getKeymapProfile().camera != null && mInput.getKeymapProfile().camera.autoActive)
+        if (mInput.getKeymapProfile().camera != null && !mInput.getKeymapProfile().camera.stick && mInput.getKeymapProfile().camera.autoActive)
             triggerCamera();
     }
 

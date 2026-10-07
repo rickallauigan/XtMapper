@@ -87,3 +87,25 @@ KBM and Device Mapping Manager tests remain enabled.
 Physical gameplay results belong to each hardware/game profile's validation
 record. Parsing, native capability tests, and compilation are not gameplay
 validation.
+
+## Right-stick camera and held-button repeat
+
+`STICK_CAMERA x y sensitivityX sensitivityY deadZone` reuses the Camera
+model/marker, scaling and Parcelable transport. It is exclusive with CAMERA.
+The controller uses a radial dead zone and integrates stick velocity at roughly
+60 Hz (600 profile pixels/second at full deflection and sensitivity 1). Large
+scheduler stalls cap at 50 ms. Bounds clamp without periodic drag resets.
+Centering releases the drag; holding a skill first releases the camera pointer
+and gives skill aim priority. Releasing the last skill resumes camera input
+if the stick is still displaced. Logical pointer 58 is separate from skills.
+Disconnect, reload, pause and stop release camera touches and cancel ticks.
+The marker can be moved/exported in the editor; configuration text edits
+sensitivity/dead zone. Mouse camera remains a separate CAMERA configuration.
+
+A fixed KEY_* / BTN_* / DPAD_* line may optionally append a repeat interval:
+`BTN_GAMEPAD x y offset intervalMs`. Four-field legacy bindings remain held
+touches. The optional interval is 60..60000 ms; a repeated tap holds for up
+to 40 ms and waits the rest of the interval. Repeated raw DOWN events do not
+start another loop. UP, disconnect, pause, reload and stop cancel pending
+callbacks and release the current tap. Editor/import/export/Parcelable preserve
+the interval. The S10e GameSir A binding uses 150 ms.

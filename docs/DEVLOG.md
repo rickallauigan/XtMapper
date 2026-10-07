@@ -81,3 +81,20 @@ G8 S10e v0.1. Auto profiling enabled; foreground debug service active in Hero
 Training. Root runtime capability probe selects the gamepad event interface,
 not its sensor/touchpad. Installed profile matches repository exactly; every
 pre-existing debug profile and the KBM group/binding remain unchanged.
+
+### Follow-up: controller camera and held A
+
+Added STICK_CAMERA using the existing KBM camera anchor and generic Camera
+model. Analog velocity panning releases on center; skills take priority and
+camera resumes after release. Independent pointer 58 and cancellation on
+stop/reload/disconnect are tested. A's optional fixed-binding repeat interval
+is 150 ms; duplicate DOWN is ignored and both pulse phases cancel on release.
+Legacy four-field bindings and mouse CAMERA retain their behavior.
+
+BUILT: 74 unit tests and debug build pass. INSTALLED: updated debug APK/profile
+via normal ZIP import. Human camera pan/center-release acceptance passed after service restart.
+Held-A repeat/release and camera → RB aim/cast → camera priority also passed
+human Hero Training checks. Combined native movement/camera/repeated-attack smoke and clean release passed.
+The tested debug service/profile remain active and configured.
+The pre-follow-up debug backup is debug-before-camera.tar in the session /tmp
+folder. All changes continue on the existing branch and PR #8.
