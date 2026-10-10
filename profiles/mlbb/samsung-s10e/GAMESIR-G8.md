@@ -1,8 +1,8 @@
-# Samsung S10e MLBB GameSir G8 v0.1
+# Samsung S10e MLBB GameSir G8 v0.2
 
 This controller profile extends the physically tested S10e KBM setup. It does
 not establish a second HUD coordinate system. `generate-gamesir-profile.py`
-reads `mlbb-kbm-v0.1.txt` and generates `mlbb-gamesir-g8-v0.1.txt`; regenerate
+reads `mlbb-kbm-v0.1.txt` and generates `mlbb-gamesir-g8-v0.2.txt` by default; regenerate
 and run `--check` after changing shared action positions. No game coordinates
 are embedded in event handlers.
 
@@ -29,14 +29,14 @@ APK SHA-256 `743a7b971497cec7f14e7eb3b58704869e54d5ddda33c721bd9780a36698ba87`.
 | Physical input | Linux input | MLBB action | Default profile |
 | --- | --- | --- | --- |
 | Left stick | ABS_X / ABS_Y | Native hero movement | Untouched; no synthetic joystick |
-| A | BTN_GAMEPAD | Basic Attack; hold to repeat | KBM left-click anchor, 150 ms |
+| A | BTN_GAMEPAD | Battle Spell + right-stick aim | KBM F anchor |
 | B | BTN_EAST | Regen | KBM G anchor |
 | X | BTN_WEST | Recall | KBM B anchor |
 | Y | BTN_NORTH | Active equipment / Roam active | Configurable; no measured anchor |
 | RB | BTN_TR | Skill 1 + right-stick aim | KBM Q center |
 | RT | BTN_TR2 | Skill 2 + right-stick aim | KBM E center |
 | LB | BTN_TL | Ultimate + right-stick aim | KBM R center |
-| LT | BTN_TL2 | Battle Spell + right-stick aim | KBM F anchor |
+| LT | BTN_TL2 | Basic Attack; hold to repeat | KBM left-click anchor, 150 ms |
 | Right stick | ABS_RX / ABS_RY | Aim held skill/spell; otherwise camera pan | Absolute aim / camera velocity |
 | D-pad up | ABS_HAT0Y = -1 → DPAD_UP | Attack Turret | Configurable; no measured anchor |
 | D-pad down | ABS_HAT0Y = +1 → DPAD_DOWN | Attack Minion | Configurable; no measured anchor |
@@ -65,7 +65,7 @@ movement; other held skills retain independent, releasable pointers.
 
 Use **XtMapper(Debug)**, package `xtr.keymapper.debug`.
 
-1. Import the configuration into **MLBB GameSir G8 S10e v0.1**, or import a
+1. Import the configuration into a new **MLBB GameSir G8 S10e v0.2**, or import a
    normal profile ZIP containing that name and this text.
 2. In Device & Mapping Manager, create/reuse **GameSir G8 Setup** and select
    the logical GameSir controller. Android may combine controller, sensor,
@@ -85,7 +85,7 @@ Do not use placeholder coordinates. R3 cannot reliably cancel merely by
 lifting an aimed touch: that normally casts. It stays unbound until a verified
 cancel target/gesture is available.
 
-## Physical acceptance procedure
+## Historical v0.1 physical acceptance procedure
 
 Use Hero Training only. First press **A** near a training target and verify
 Basic Attack, repeated presses, and clean release. Then verify B Regen and X
@@ -97,7 +97,7 @@ movement + aiming + A together. Release all controls, reconnect the controller,
 then repeat a short smoke test. Check touchscreen use and service restart.
 Pending utilities need calibration before testing their intended actions.
 
-## Physical results
+## Historical v0.1 physical results
 
 Human Hero Training checks on the installed debug build:
 
@@ -163,3 +163,33 @@ Run `./gradlew testDebugUnitTest assembleDebug`, both scripts under
 APK: `app/build/outputs/apk/debug/app-debug.apk`.
 Install with `adb -s <discovered-S10e-serial> install -r <APK>`.
 Root/overlay permissions are required for this tested injection architecture.
+
+## v0.2 installation, rollback and acceptance (#14)
+
+v0.2 changes only LT/A inputs, retaining the measured anchors and all other
+bindings. v0.1 and the KBM profile remain unchanged. Generate/check v0.2 with
+`python3 profiles/mlbb/samsung-s10e/generate-gamesir-profile.py --check`;
+use `--version 0.1 --check` to verify the rollback fixture.
+
+Build with `./gradlew testDebugUnitTest assembleDebug`. Export existing debug
+profiles before updating; keep the previous debug APK for binary rollback.
+Install `app/build/outputs/apk/debug/app-debug.apk` using
+`adb -s <S10e-serial> install -r app/build/outputs/apk/debug/app-debug.apk`.
+Import v0.2 as a new profile using configuration Import/Export, save it, and
+change **GameSir G8 Setup + com.mobile.legends** to that profile in Device &
+Mapping Manager. Keep the KBM group association and existing auto-profile
+settings. Restart the service. No additional cutout offset is needed.
+
+For rollback, stop the service, reselect the retained v0.1 profile for the
+GameSir group, then restart. If necessary import `mlbb-gamesir-g8-v0.1.txt`
+under its original name. For APK rollback, reinstall the saved compatible
+debug APK; Android may require `adb install -r -d` for a version downgrade.
+Do not uninstall or clear app data; export profiles before any binary rollback.
+
+**Physical testing still required for v0.2.** Historical passes above apply
+only to v0.1. In Hero Training on the calibrated HUD, test LT tap/150 ms
+hold/release, A Revitalize once, LT+A, native movement + LT + each RB/RT/LB
+held aim/release, and skill priority followed by camera restoration. Test
+rapid presses, pause, app exit, profile switch, service restart and USB
+reconnect for stuck touches. Directional Battle Spell aiming (e.g. Flicker)
+requires separate testing; Revitalize cannot validate it.
