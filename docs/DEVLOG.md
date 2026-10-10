@@ -110,3 +110,29 @@ A spell, shoulder skill and mouse aim concurrently. Import/install/rollback
 and new physical acceptance steps are in the hardware profile documentation.
 Physical v0.2 gameplay testing remains required; historical v0.1 passes do not
 validate the new layout. No auto-profile or unrelated UI behavior changed.
+
+## 2026-10-10 — Reusable controller leveling chords and D-pad routing (#9)
+
+Added validated `CHORD modifier trigger x y offset` fixed touches, with
+modifier-first precedence, full-press base suppression, duplicate filtering,
+independent pointers and disconnect/SYN loss/node replacement/stop cleanup.
+Persistence, scaling, editor labels/movable markers and ZIP round trips are
+covered. Extended InputService stop/pause/reload coverage with a chord while
+LT attack, A spell, shoulder aim and mouse aim are active.
+
+D-pad investigation: current G8 profile has no utility targets. A hat event
+before hotplug polling also failed to discover a reconnected controller; hats
+now trigger discovery, and BTN_DPAD aliases normalize for runtime/capture.
+This routing change still needs physical confirmation on the S10e.
+
+The generator accepts optional physically recorded extra anchors for v0.2,
+including SELECT+RB/RT/LB leveling. No actual leveling, Shop, Quick Buy,
+Turret, Minion or equipment targets were available, so all remain unbound.
+Calibration instructions and physical chord/D-pad acceptance are documented.
+
+Validation of the combined change: `./gradlew testDebugUnitTest assembleDebug`
+passed (79 unit tests, debug APK); both native reader/probe scripts passed;
+two Python generator tests, v0.2/v0.1 consistency and `git diff --check` passed.
+Build used temporary Android SDK API 37.0 and the existing JDK 21. Toolchain
+setup did not change project build configuration. Installation and human
+Hero Training acceptance have not been performed for these changes.

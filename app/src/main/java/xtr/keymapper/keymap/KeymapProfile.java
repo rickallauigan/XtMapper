@@ -29,6 +29,7 @@ public class KeymapProfile implements Parcelable {
     public ArrayList<SwipeKey> swipeKeys = new ArrayList<>();
     public Key rightClick;
     public Key leftClick;
+    public ArrayList<xtr.keymapper.keymap.element.ControllerChord> chords = new ArrayList<>();
     public ArrayList<AimKey> aimKeys = new ArrayList<>();
     public boolean disabled = false;
     public int xRes, yRes;
@@ -42,6 +43,7 @@ public class KeymapProfile implements Parcelable {
 
     public boolean hasControllerBindings() {
         java.util.function.Predicate<String> controller = xtr.keymapper.controller.ControllerBindings::isController;
+        if (!chords.isEmpty()) return true;
         if (keys.stream().anyMatch(k -> controller.test(k.code)) || aimKeys.stream().anyMatch(k -> controller.test(k.code))) return true;
         if (swipeKeys.stream().anyMatch(k -> controller.test(k.key1.code) || controller.test(k.key2.code))) return true;
         for (Dpad dpad : dpadArray) if (dpad != null && (controller.test(dpad.keycodes.Up)
@@ -67,6 +69,7 @@ public class KeymapProfile implements Parcelable {
             scaler.accept(leftClick);
             scaler.accept(camera);
             aimKeys.forEach(scaler);
+            chords.forEach(scaler);
             scaler.accept(mouseAimConfig);
             scaler.accept(mouseWalk);
 
@@ -91,6 +94,7 @@ public class KeymapProfile implements Parcelable {
         mouseWalk = in.readParcelable(MouseWalk.class.getClassLoader());
         leftClick = in.readParcelable(Key.class.getClassLoader());
         aimKeys = in.createTypedArrayList(AimKey.CREATOR);
+        chords = in.createTypedArrayList(xtr.keymapper.keymap.element.ControllerChord.CREATOR);
     }
 
     @Override
@@ -109,6 +113,7 @@ public class KeymapProfile implements Parcelable {
         dest.writeParcelable(mouseWalk, flags);
         dest.writeParcelable(leftClick, flags);
         dest.writeTypedList(aimKeys);
+        dest.writeTypedList(chords);
     }
 
     @Override

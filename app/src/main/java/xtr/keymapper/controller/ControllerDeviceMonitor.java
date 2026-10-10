@@ -87,6 +87,7 @@ public final class ControllerDeviceMonitor {
         final long[] info;
         final ControllerAimHandler aim;
         final ControllerDpad dpad;
+        final ControllerChordHandler chords;
         final ControllerCameraHandler camera;
         final Set<String> pressed = new HashSet<>();
         int rx, ry;
@@ -96,6 +97,8 @@ public final class ControllerDeviceMonitor {
             aim = new ControllerAimHandler(input.getKeymapProfile().aimKeys, input::injectEvent, width, height);
             var config = input.getKeymapProfile().camera;
             camera = config != null && config.stick ? new ControllerCameraHandler(config, input::injectEvent, width, height) : null;
+            chords = new ControllerChordHandler(input.getKeymapProfile().chords, input::injectEvent,
+                Math.max(ControllerChordHandler.FIRST_POINTER_ID, input.getKeymapProfile().keys.size()));
             dpad = new ControllerDpad(this::button);
             axes();
         }
@@ -108,6 +111,7 @@ public final class ControllerDeviceMonitor {
         }
         void button(String code, int action) {
             if (action == 1 ? !pressed.add(code) : !pressed.remove(code)) return;
+            if (chords.event(code, action)) return;
             boolean aimingTrigger = input.getKeymapProfile().aimKeys.stream().anyMatch(c -> c.stick && c.code.equals(code));
             if (aimingTrigger && action == 1 && camera != null) camera.suspend(true);
             if (aim.trigger(code, action)) {
@@ -121,7 +125,7 @@ public final class ControllerDeviceMonitor {
             if (camera != null) camera.reset();
             dpad.reset();
             for (String code : new HashSet<>(pressed)) button(code, 0);
-            aim.reset(); pressed.clear();
+            chords.reset(); aim.reset(); pressed.clear();
             if (camera != null) camera.reset();
         }
     }
@@ -163,8 +167,10 @@ public final class ControllerDeviceMonitor {
         Device device = devices.get(path);
         if (device == null) {
             String[] pending = line.trim().split("\\s+");
-            if (pending.length < 3 || !pending[0].equals("EV_KEY")
-                    || !ControllerBindings.isController(ControllerBindings.canonical(pending[1]))) return false;
+            if (pending.length < 3) return false;
+            boolean button = pending[0].equals("EV_KEY") && ControllerBindings.isController(pending[1]);
+            boolean hat = pending[0].equals("EV_ABS") && (pending[1].equals("ABS_HAT0X") || pending[1].equals("ABS_HAT0Y"));
+            if (!button && !hat) return false;
             // A first button can arrive before the periodic scan after reconnect.
             // Probe now; do not let generic keys create a touch that this device cannot later release.
             scan(); device = devices.get(path);

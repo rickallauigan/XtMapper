@@ -4,6 +4,7 @@ No profile-format includes or game-specific runtime code are required.
 """
 import argparse
 import json
+import math
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
@@ -24,9 +25,32 @@ def generate(version="0.2"):
     c = tags['CAMERA']
     result.append(f'STICK_CAMERA {c[1]} {c[2]} {c[3]} {c[4]} 0.15')
     extra_path = ROOT / 'mlbb-extra-anchors.json'
-    if extra_path.exists():
-        for binding in json.loads(extra_path.read_text()).get('bindings', []):
-            result.append(f'{binding["code"]} {binding["x"]} {binding["y"]} 0')
+    if version == '0.2' and extra_path.exists():
+        extras = json.loads(extra_path.read_text())
+        width, height = map(float, tags['SCREENSIZE'][1:])
+        def measured(entry):
+            if not isinstance(entry.get('measurement'), str) or not entry['measurement'].strip():
+                raise ValueError('Extra anchors require a physical measurement record')
+            if not all(isinstance(entry.get(k), (int, float)) and math.isfinite(entry[k]) for k in ('x', 'y')):
+                raise ValueError('Extra coordinates must be finite numbers')
+            if not (0 <= entry['x'] < width and 0 <= entry['y'] < height):
+                raise ValueError('Extra anchor is outside the calibrated display')
+        codes = set()
+        for binding in extras.get('bindings', []):
+            measured(binding)
+            code = binding['code']
+            if code not in {'BTN_NORTH', 'DPAD_UP', 'DPAD_DOWN', 'DPAD_LEFT', 'DPAD_RIGHT'} or code in codes:
+                raise ValueError('Unsupported or duplicate utility binding')
+            codes.add(code)
+            result.append(f'{code} {binding["x"]} {binding["y"]} 0')
+        triggers = set()
+        for chord in extras.get('chords', []):
+            measured(chord)
+            trigger = chord['trigger']
+            if chord['modifier'] != 'BTN_SELECT' or trigger not in {'BTN_TR', 'BTN_TR2', 'BTN_TL'} or trigger in triggers:
+                raise ValueError('Unsupported or duplicate skill-leveling chord')
+            triggers.add(trigger)
+            result.append(f'CHORD BTN_SELECT {trigger} {chord["x"]} {chord["y"]} 0')
     return '\n'.join(result) + '\n'
 
 if __name__ == '__main__':
