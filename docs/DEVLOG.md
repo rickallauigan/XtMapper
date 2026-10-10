@@ -98,3 +98,15 @@ human Hero Training checks. Combined native movement/camera/repeated-attack smok
 The tested debug service/profile remain active and configured.
 The pre-follow-up debug backup is debug-before-camera.tar in the session /tmp
 folder. All changes continue on the existing branch and PR #8.
+
+## 2026-10-10 — MLBB GameSir v0.2 (#14)
+
+Generated `mlbb-gamesir-g8-v0.2.txt` from existing S10e KBM anchors: LT is
+Basic Attack with 150 ms repeat; A is Battle Spell with the existing STICK_AIM
+parameters. Every other generated binding, v0.1 and KBM are preserved. The
+version selector defaults to v0.2; `--version 0.1 --check` verifies rollback.
+Updated the real InputService stop/pause/reload fixture to cover LT repeat,
+A spell, shoulder skill and mouse aim concurrently. Import/install/rollback
+and new physical acceptance steps are in the hardware profile documentation.
+Physical v0.2 gameplay testing remains required; historical v0.1 passes do not
+validate the new layout. No auto-profile or unrelated UI behavior changed.

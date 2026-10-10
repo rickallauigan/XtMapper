@@ -350,18 +350,19 @@ public class MappingRuntimeTest {
     @Test public void controllerMonitorStopPauseAndReloadReleasePointersWithMouseAndKeyboard() throws Exception {
         for (String lifecycle : List.of("stop", "pause", "reload")) {
             Recorder recorder = new Recorder();
-            InputService service = service("BTN_GAMEPAD 100 100 0 150\nSTICK_AIM BTN_TR 500 600 180 1 1 .15 0\n" + AIM,
+            InputService service = service("BTN_TL2 100 100 0 150\nSTICK_AIM BTN_GAMEPAD 300 600 180 1 1 .15 0\nSTICK_AIM BTN_TR 500 600 180 1 1 .15 0\n" + AIM,
                 ProfileConfiguration.parse("KEY_F 400 500 0"), recorder);
             var monitor = new xtr.keymapper.controller.ControllerDeviceMonitor(service, 2280, 1080,
                 () -> java.util.Map.of("/dev/input/event99", new long[]{1,2,0,255,128,0,255,128}));
             var field = InputService.class.getDeclaredField("controllers");field.setAccessible(true);field.set(service,monitor);
             monitor.start();
+            monitor.event("/dev/input/event99","EV_KEY BTN_TL2 DOWN");
             monitor.event("/dev/input/event99","EV_KEY BTN_GAMEPAD DOWN");
             service.getMouseEventHandler().handleAimTrigger("KEY_Q",1);
             monitor.event("/dev/input/event99","EV_KEY BTN_TR DOWN");
-            assertEquals(3,recorder.actions.size());
+            assertEquals(4,recorder.actions.size());
             switch(lifecycle) { case "stop": service.stop();break;case "pause": service.pauseResumeKeymap();break;default:service.reloadKeymap(); }
-            assertEquals(3,recorder.actions.stream().filter(action -> action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP).count());
+            assertEquals(4,recorder.actions.stream().filter(action -> action == MotionEvent.ACTION_UP || action == MotionEvent.ACTION_POINTER_UP).count());
             int size=recorder.actions.size();assertFalse(monitor.event("/dev/input/event99","EV_ABS ABS_RX 000000ff"));
             assertEquals(size,recorder.actions.size());service.stop();
         }
