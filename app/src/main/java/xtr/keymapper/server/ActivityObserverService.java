@@ -32,25 +32,27 @@ public class ActivityObserverService implements Runnable {
 
     @Override
     public void run() {
+        ActivityObserver callback;
+        synchronized (this) { callback = mCallback; }
+        if (callback == null) return;
         try {
-            List<ActivityManager.RunningTaskInfo> taskInfo = am.getTasks(1);
-            String packageName = taskInfo.get(0).topActivity.getPackageName();
-            if (mCallback != null) {
-                mCallback.onForegroundActivitiesChanged(packageName);
-                mHandler.postDelayed(this, 5000);
-            } else {
-                stop();
-            }
+            List<ActivityManager.RunningTaskInfo> tasks = am.getTasks(1);
+            if (!tasks.isEmpty() && tasks.get(0).topActivity != null)
+                callback.onForegroundActivitiesChanged(tasks.get(0).topActivity.getPackageName());
         } catch (RemoteException e) {
             Log.e(RemoteService.TAG, e.getMessage(), e);
+        } finally {
+            synchronized (this) {
+                if (mCallback == callback && mHandler != null) mHandler.postDelayed(this, 5000);
+            }
         }
     }
 
-    public void stop() {
+    public synchronized void stop() {
         mCallback = null;
+        if (mHandler != null) mHandler.removeCallbacks(this);
         mHandler = null;
-        if (mHandlerThread != null)
-            mHandlerThread.quit();
+        if (mHandlerThread != null) mHandlerThread.quitSafely();
         mHandlerThread = null;
     }
 }

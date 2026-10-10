@@ -370,6 +370,65 @@ public class MappingRuntimeTest {
         }
     }
 
+    @Test public void foregroundExitCancelsRuntimeStartsReleasesTouchesAndRejectsUnrelatedAppInput() throws Exception {
+        Recorder recorder = new Recorder();
+        InputService runtime = service("KEY_F 400 500 0 150\n" + AIM + CAMERA, null, recorder);
+        runtime.getKeyEventHandler().handleEvent(" EV_KEY KEY_F DOWN");
+        runtime.getMouseEventHandler().handleAimTrigger("KEY_Q", 1);
+        RuntimeRequestGate gate = new RuntimeRequestGate(); long delayedStart = gate.next();
+        gate.invalidate(() -> runtime.pauseResumeKeymap());
+        assertTrue(runtime.stopEvents);
+        assertEquals(2, recorder.actions.stream().filter(action -> action == MotionEvent.ACTION_UP ||
+                action == MotionEvent.ACTION_POINTER_UP).count());
+        int size = recorder.actions.size();
+        assertFalse(gate.commit(delayedStart, () -> runtime.pauseResumeKeymap()));
+        // Even a racing down/move after cleanup is blocked by InputService's existing touch gate.
+        runtime.injectEvent(100, 100, InputService.DOWN, 25);
+        runtime.injectEvent(200, 200, InputService.MOVE, 25);
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(400));
+        assertEquals(size, recorder.actions.size()); runtime.stop();
+    }
+
+    @Test public void measuredV03CombatAndUpgradeTouchesReleaseOnForegroundExitWithoutChatOrMovementInjection() throws Exception {
+        // Snapshot of the verified v0.3 control contract; no controller layout is changed by this PR.
+        String v03 = """
+            APPLICATION com.mobile.legends
+            SCREENSIZE 2280 1080
+            ENABLED
+            BTN_TL2 1981.08 946.58 0 150
+            BTN_EAST 1341.5 955.02 0
+            BTN_WEST 1172.29 970.84 0
+            STICK_AIM BTN_TR 1650.44 965.04 180 1 1 0.15 0
+            STICK_AIM BTN_TR2 1775.13 753.31 180 1 1 0.15 0
+            STICK_AIM BTN_TL 1986.09 648.63 180 1 1 0.15 0
+            STICK_AIM BTN_GAMEPAD 1477.88 982.97 180 1 1 0.15 0
+            STICK_CAMERA 1609.8 312.19 1 1 0.15
+            BTN_SELECT 1860 536 0
+            BTN_THUMBR 1551 846.5 0
+            BTN_THUMBL 1660.5 646 0
+            """;
+        Recorder recorder = new Recorder(); InputService runtime = service(v03, null, recorder);
+        var monitor = new xtr.keymapper.controller.ControllerDeviceMonitor(runtime, 2280, 1080,
+            () -> java.util.Map.of("pad", new long[]{1, 2, 0, 255, 128, 0, 255, 128}));
+        var field = InputService.class.getDeclaredField("controllers"); field.setAccessible(true); field.set(runtime, monitor);
+        monitor.start();
+        for (String event : List.of("EV_KEY BTN_START DOWN", "EV_KEY BTN_START UP",
+                "EV_ABS ABS_X 000000ff", "EV_ABS ABS_Y 00000000")) monitor.event("pad", event);
+        assertTrue(recorder.actions.isEmpty()); // Chat and native movement have no mapped touch.
+        for (String code : List.of("BTN_TL2", "BTN_GAMEPAD", "BTN_TR", "BTN_TR2", "BTN_TL",
+                "BTN_SELECT", "BTN_THUMBR", "BTN_THUMBL")) monitor.event("pad", "EV_KEY " + code + " DOWN");
+        assertEquals(8, recorder.actions.size());
+        monitor.event("pad", "EV_ABS ABS_RX 000000ff"); monitor.event("pad", "EV_SYN SYN_REPORT 00000000");
+        assertTrue(recorder.actions.contains(MotionEvent.ACTION_MOVE));
+        runtime.pauseResumeKeymap();
+        assertEquals(8, recorder.actions.stream().filter(action -> action == MotionEvent.ACTION_UP ||
+                action == MotionEvent.ACTION_POINTER_UP).count());
+        int size = recorder.actions.size();
+        monitor.event("pad", "EV_KEY BTN_TL2 DOWN"); monitor.event("pad", "EV_KEY BTN_SELECT DOWN");
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(500));
+        assertEquals(size, recorder.actions.size()); runtime.stop();
+    }
+
     private record Event(float x,float y,int action,int pid) {}
     private static IRemoteServiceCallback callback() {
         return (IRemoteServiceCallback) Proxy.newProxyInstance(IRemoteServiceCallback.class.getClassLoader(),

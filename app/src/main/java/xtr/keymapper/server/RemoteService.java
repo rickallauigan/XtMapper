@@ -40,7 +40,8 @@ import xtr.keymapper.server.event.KeyEventHandler;
 
 public class RemoteService extends IRemoteService.Stub {
     private String currentDevice = "";
-    InputService inputService;
+    private final RuntimeRequestGate runtimeRequests = new RuntimeRequestGate();
+    volatile InputService inputService;
     private OnKeyEventListener mOnKeyEventListener;
     boolean isWaylandClient = false;
     private ActivityObserverService activityObserverService;
@@ -172,13 +173,14 @@ public class RemoteService extends IRemoteService.Stub {
         while ((line = getevent.readLine()) != null) {
             String[] data = line.split(":"); // split a string like "/dev/input/event2: EV_REL REL_X ffffffff"
             if (addNewDevices(data)) {
-                if (inputService != null) try {
+                InputService current = inputService;
+                if (current != null) try {
                     if (isWaylandClient && data[0].contains("wl_pointer"))
-                        inputService.onWaylandMouseEvent(data[1]);
+                        current.onWaylandMouseEvent(data[1]);
 
-                    KeyEventHandler k = inputService.getKeyEventHandler();
-                    if (!inputService.stopEvents) {
-                        if (!inputService.onControllerEvent(data[0], data[1])) k.handleEvent(data[1]);
+                    KeyEventHandler k = current.getKeyEventHandler();
+                    if (!current.stopEvents) {
+                        if (!current.onControllerEvent(data[0], data[1])) k.handleEvent(data[1]);
                     } else {
                         k.handleKeyboardShortcutEvent(data[1]);
                     }
@@ -205,9 +207,10 @@ public class RemoteService extends IRemoteService.Stub {
         if (isWaylandClient) return true;
         if (input_event.length >= 3 && input_event[1].equals("EV_REL")
                 && (input_event[2].equals("REL_X") || input_event[2].equals("REL_Y"))) {
-            if (inputService == null) currentDevice = evdev;
-            else if (!currentDevice.equals(evdev) || !inputService.isMouseDeviceCurrent(evdev)) {
-                if (inputService.openDevice(evdev) >= 0) currentDevice = evdev;
+            InputService current = inputService;
+            if (current == null) currentDevice = evdev;
+            else if (!currentDevice.equals(evdev) || !current.isMouseDeviceCurrent(evdev)) {
+                if (current.openDevice(evdev) >= 0) currentDevice = evdev;
             }
         }
         return true;
@@ -226,8 +229,13 @@ public class RemoteService extends IRemoteService.Stub {
      */
     @Override
     public void startServer(KeymapProfile profile, KeymapConfig keymapConfig, IRemoteServiceCallback cb, int screenWidth, int screenHeight, int displayId) throws RemoteException {
-        if (cb != null) cb.asBinder().linkToDeath(mStartServerDeathRecipient, 0);
-        mHandler.post(() -> {
+        long request = runtimeRequests.next();
+        mHandler.post(() -> runtimeRequests.commit(request, () -> {
+            if (cb != null) try {
+                cb.asBinder().linkToDeath(mStartServerDeathRecipient, 0);
+            } catch (RemoteException deadClient) {
+                return;
+            }
             if (inputService != null) {
                 if (isWaylandClient) {
                     inputService.hideCursor();
@@ -243,13 +251,27 @@ public class RemoteService extends IRemoteService.Stub {
                 cursorView = null;
             }
             try {
-                inputService = new InputService(profile, keymapConfig, cb, screenWidth, screenHeight, cursorView, isWaylandClient, displayId);
+                InputService next = new InputService(profile, keymapConfig, cb, screenWidth, screenHeight, cursorView, isWaylandClient, displayId);
                 if (!isWaylandClient) {
-                    inputService.setMouseLock(true);
-                    inputService.openDevice(currentDevice);
+                    next.setMouseLock(true);
+                    next.openDevice(currentDevice);
+                }
+                // The event reader cannot see a new runtime until its request is still current.
+                if (!runtimeRequests.publish(request, () -> inputService = next)) {
+                    next.stopEvents = true;
+                    next.stop();
+                    inputService = next; // Publish only the stopped runtime for existing teardown.
+                    stopServer(false);
+                    return;
                 }
             } catch (RemoteException e) {
                 throw new RuntimeException(e);
+            }
+            // A pause can arrive during construction through a Binder callback. Cleanup
+            // before returning to the main looper, where controller frame ticks are queued.
+            if (!runtimeRequests.isCurrent(request)) {
+                pauseCurrentMapping();
+                return;
             }
             // Launch app/game
             if (!profile.packageName.equals(BuildConfig.APPLICATION_ID) && keymapConfig.disableAutoProfiling) {
@@ -261,17 +283,18 @@ public class RemoteService extends IRemoteService.Stub {
                     throw new RuntimeException(e);
                 }
             }
-        });
+        }));
     }
 
     @Override
     public void destroy() {
-        stopServer(true);
+        stopServer();
     }
 
     @Override
     public void stopServer() {
-        mHandler.post(() -> stopServer(true));
+        long request = runtimeRequests.next();
+        mHandler.post(() -> runtimeRequests.commit(request, () -> stopServer(true)));
     }
 
     private void stopServer(boolean exitProcess) {
@@ -332,8 +355,14 @@ public class RemoteService extends IRemoteService.Stub {
      */
     @Override
     public void pauseMouse(){
-        if (inputService != null)
-            if (!inputService.stopEvents) inputService.pauseResumeKeymap();
+        runtimeRequests.invalidate(this::pauseCurrentMapping);
+    }
+
+    private void pauseCurrentMapping() {
+        InputService current = inputService;
+        if (current != null) synchronized (current) {
+            if (!current.stopEvents) current.pauseResumeKeymap();
+        }
     }
 
     @Override
