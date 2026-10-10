@@ -108,4 +108,37 @@ touches. The optional interval is 60..60000 ms; a repeated tap holds for up
 to 40 ms and waits the rest of the interval. Repeated raw DOWN events do not
 start another loop. UP, disconnect, pause, reload and stop cancel pending
 callbacks and release the current tap. Editor/import/export/Parcelable preserve
-the interval. The S10e GameSir A binding uses 150 ms.
+the interval. The S10e GameSir v0.2 LT binding uses 150 ms (A in v0.1).
+
+## Controller chords
+
+`CHORD modifier trigger x y offset` defines a fixed touch using canonical
+controller button codes. For example, SELECT + RB uses modifier `BTN_SELECT`
+and trigger `BTN_TR`; enter actual measured coordinates through configuration
+Import/Export. The editor/overlay displays `SELECT + RB`, supports moving or
+removing the anchor, and preserves chord text on save/export. Button identities
+are edited in configuration text rather than captured as simultaneous presses.
+
+At most eight chords are accepted. Each trigger has one chord; modifiers and
+triggers must differ. Modifiers cannot also have fixed, aim, camera, macro or
+movement/swipe bindings, or be chord triggers. Invalid imports fail before
+storage changes. X/Y scaling matches fixed keys; offset retains existing fixed
+key semantics. Chords are included in Parcelable and ZIP persistence.
+
+Modifier-first claims the trigger on DOWN and suppresses its ordinary action
+through UP. Trigger-first retains its ordinary action, even when SELECT is
+pressed later. Early modifier release does not change ownership; raw repeats
+and duplicate DOWNs do not create another touch. A chord is a held fixed touch,
+not an automatically repeated tap. Several chord triggers can coexist with
+ordinary attack, aim and camera touches. Pointer IDs start at 59 (or beyond the
+fixed-key list for large profiles), separate from aim 50..57 and camera 58.
+Disconnect, SYN_DROPPED, node replacement, pause, reload and stop release owned
+presses and clear modifiers. The existing injector retains its ten-touch limit.
+
+D-pad hats now initiate controller discovery when they are the first event after
+reconnect. Digital `BTN_DPAD_*` aliases canonicalize to `DPAD_*`, including
+editor capture. Native keyboard arrow keys remain keyboard codes. On the S10e
+G8 baseline the observed D-pad is ABS_HAT0X/Y, and all D-pad utility targets are
+unbound: correct input routing alone cannot activate Shop without calibration.
+No physical D-pad repair is claimed until the current device stream and HUD
+bindings are tested on hardware.

@@ -17,6 +17,9 @@ public final class ProfileConfiguration {
         Set<String> lines = new LinkedHashSet<>();
         Set<String> singletons = new LinkedHashSet<>();
         int dpads = 0;
+        Set<String> chordModifiers = new LinkedHashSet<>();
+        Set<String> chordTriggers = new LinkedHashSet<>();
+        Set<String> ordinaryTriggers = new LinkedHashSet<>();
         Set<String> aimTriggers = new LinkedHashSet<>();
         String[] input = text.split("\\r?\\n", -1);
         for (int lineNumber = 0; lineNumber < input.length; lineNumber++) {
@@ -29,6 +32,17 @@ public final class ProfileConfiguration {
                 data[1] = xtr.keymapper.controller.ControllerBindings.canonical(data[1]);
             try {
                 switch (tag) {
+                    case "CHORD":
+                        count(data, 6); floats(data, 3, 5);
+                        data[1] = xtr.keymapper.controller.ControllerBindings.canonical(data[1]);
+                        data[2] = xtr.keymapper.controller.ControllerBindings.canonical(data[2]);
+                        if (!xtr.keymapper.controller.ControllerBindings.isController(data[1])
+                                || !xtr.keymapper.controller.ControllerBindings.isController(data[2])) fail("CHORD requires controller buttons");
+                        if (data[1].equals(data[2])) fail("CHORD modifier and trigger must differ");
+                        if (!chordTriggers.add(data[2])) fail("Duplicate CHORD trigger");
+                        if (chordTriggers.size() > 8) fail("At most eight chords are supported");
+                        chordModifiers.add(data[1]);
+                        break;
                     case "DPAD": case "DPAD_UDLR":
                         count(data, 12); floats(data, 1, 5); positiveInt(data[6]); positiveInt(data[7]);
                         if (++dpads > KeymapProfile.MAX_DPADS) fail("At most three D-pads are supported");
@@ -98,8 +112,22 @@ public final class ProfileConfiguration {
                 throw new IllegalArgumentException("Line " + (lineNumber + 1) + " (" + tag + "): " + error.getMessage(), error);
             }
         }
+        for (String trigger : chordTriggers)
+            if (chordModifiers.contains(trigger)) fail("Nested chord modifiers are unsupported");
         for (String line : lines) {
             String[] data = line.split("\\s+");
+            if (xtr.keymapper.controller.ControllerBindings.isBinding(data[0])) ordinaryTriggers.add(data[0]);
+            switch (data[0]) {
+                case "AIM_KEY": case "STICK_AIM": ordinaryTriggers.add(data[1]); break;
+                case "DPAD": case "DPAD_UDLR":
+                    for (int i = 8; i < 12; i++) ordinaryTriggers.add(xtr.keymapper.controller.ControllerBindings.canonical(data[i]));
+                    break;
+                case "SWIPE_KEY":
+                    ordinaryTriggers.add(xtr.keymapper.controller.ControllerBindings.editorCode(data[1]));
+                    ordinaryTriggers.add(xtr.keymapper.controller.ControllerBindings.editorCode(data[4])); break;
+                case "CAMERA": ordinaryTriggers.add(data[6]); break;
+                case "MACRO": ordinaryTriggers.add(xtr.keymapper.controller.ControllerBindings.editorCode(data[2])); break;
+            }
             if (xtr.keymapper.controller.ControllerBindings.isBinding(data[0]) && aimTriggers.contains(data[0])) fail("AIM_KEY conflicts with fixed key " + data[0]);
             if (data[0].equals("DPAD") || data[0].equals("DPAD_UDLR"))
                 for (int i = 8; i < 12; i++) if (aimTriggers.contains(data[i])) fail("AIM_KEY conflicts with D-pad key " + data[i]);
@@ -110,6 +138,8 @@ public final class ProfileConfiguration {
             if (data[0].equals("MOUSE_RIGHT") && aimTriggers.contains("BTN_RIGHT")) fail("MOUSE_RIGHT conflicts with AIM_KEY BTN_RIGHT");
             if (data[0].equals("MOUSE_LEFT") && aimTriggers.contains("BTN_MOUSE")) fail("MOUSE_LEFT conflicts with AIM_KEY BTN_MOUSE");
         }
+        for (String modifier : chordModifiers)
+            if (ordinaryTriggers.contains(modifier)) fail("CHORD modifier conflicts with ordinary binding " + modifier);
         return lines;
     }
 

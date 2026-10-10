@@ -216,7 +216,7 @@ public class ControllerRuntimeTest {
         controller.get().setTheme(xtr.keymapper.R.style.Theme_XtMapper);
         var activity=controller.setup().get();
         KeymapProfiles profiles=new KeymapProfiles(activity);
-        profiles.saveProfile("controller",new ArrayList<>(ProfileConfiguration.validate(STICK+"BTN_GAMEPAD 900 800 0 150\nSTICK_CAMERA 1600 300 1 1 .15")),"example.game",true,2280,1080);
+        profiles.saveProfile("controller",new ArrayList<>(ProfileConfiguration.validate(STICK+"CHORD BTN_SELECT BTN_TR 100 200 0\nBTN_GAMEPAD 900 800 0 150\nSTICK_CAMERA 1600 300 1 1 .15")),"example.game",true,2280,1080);
         profiles.saveProfile("keyboard",new ArrayList<>(List.of("KEY_Q 10 20 0")),"example.other",true,2280,1080);
         var export=activity.getClass().getDeclaredMethod("exportProfiles",ArrayList.class);export.setAccessible(true);
         export.invoke(activity,new ArrayList<>(List.of("controller","keyboard")));
@@ -231,6 +231,7 @@ public class ControllerRuntimeTest {
         assertEquals("BTN_GAMEPAD",profiles.getProfile("controller",false).keys.get(0).code);
         assertEquals(150,profiles.getProfile("controller",false).keys.get(0).repeatIntervalMs);
         assertTrue(profiles.getProfile("controller",false).camera.stick);
+        assertEquals("BTN_SELECT",profiles.getProfile("controller",false).chords.get(0).modifier);
         assertEquals("KEY_Q",profiles.getProfile("keyboard",false).keys.get(0).code);
         try(var output = new java.util.zip.ZipOutputStream(new java.io.FileOutputStream(file))) {
             output.putNextEntry(new java.util.zip.ZipEntry("new-valid"));

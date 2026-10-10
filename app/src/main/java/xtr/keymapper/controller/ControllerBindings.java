@@ -22,6 +22,10 @@ public final class ControllerBindings {
             case "BTN_B": return "BTN_EAST";
             case "BTN_X": return "BTN_WEST";
             case "BTN_Y": return "BTN_NORTH";
+            case "BTN_DPAD_UP": return "DPAD_UP";
+            case "BTN_DPAD_DOWN": return "DPAD_DOWN";
+            case "BTN_DPAD_LEFT": return "DPAD_LEFT";
+            case "BTN_DPAD_RIGHT": return "DPAD_RIGHT";
             default: return code;
         }
     }

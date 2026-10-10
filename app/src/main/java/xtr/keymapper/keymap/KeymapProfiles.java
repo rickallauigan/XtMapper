@@ -140,6 +140,10 @@ public class KeymapProfiles {
                             }
                     break;
 
+                case "CHORD":
+                    profile.chords.add(new xtr.keymapper.keymap.element.ControllerChord(data));
+                    break;
+
                 case "STICK_AIM":
                 case AimKey.TAG:
                     profile.aimKeys.add(new AimKey(data));

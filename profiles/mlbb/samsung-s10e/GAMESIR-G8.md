@@ -6,7 +6,7 @@ reads `mlbb-kbm-v0.1.txt` and generates `mlbb-gamesir-g8-v0.2.txt` by default; r
 and run `--check` after changing shared action positions. No game coordinates
 are embedded in event handlers.
 
-Tested build: the controller implementation commit in the current GameSir PR;
+Historical v0.1 tested build: the controller implementation commit in the current GameSir PR;
 APK SHA-256 `743a7b971497cec7f14e7eb3b58704869e54d5ddda33c721bd9780a36698ba87`.
 
 ## Hardware and evidence
@@ -124,7 +124,7 @@ periodic injected pauses identified repeated capability probes as the cause.
 Caching capabilities by node identity and using stat-only hotplug polling
 removed those pauses; the user then accepted accurate smooth aiming/casting.
 
-## Status and limits
+## Historical v0.1 status and limits
 
 - **DETECTED:** S10e and G8 controller/touchpad/sensor capabilities over ADB.
 - **IMPLEMENTED:** BTN persistence/editor labels/runtime, controller discovery,
@@ -193,3 +193,40 @@ held aim/release, and skill priority followed by camera restoration. Test
 rapid presses, pause, app exit, profile switch, service restart and USB
 reconnect for stuck touches. Directional Battle Spell aiming (e.g. Flicker)
 requires separate testing; Revitalize cannot validate it.
+
+## SELECT skill-leveling and D-pad calibration (#9)
+
+Generic chord support is available. The current calibration has **no measured
+skill-level-up (+), Shop, Quick Buy, Turret, Minion or equipment anchors**.
+They remain unbound in v0.2. SELECT is reserved for the leveling layer;
+START retains native chat. Intended chords are SELECT+RB/RT/LB for Skill 1/2/3.
+D-pad Left/Right are reserved for Shop/Quick Buy, Up/Down for Turret/Minion.
+
+After physically capturing each target center on this exact 2280×1080 HUD,
+create `mlbb-extra-anchors.json` alongside the generator. Use a `bindings`
+array with `code`, `x`, `y`, `measurement` fields for utility entries, and a
+`chords` array with `modifier`, `trigger`, `x`, `y`, `measurement` fields for
+leveling entries. `measurement` must record physical capture date/HUD/source.
+Allowed utility codes are BTN_NORTH and DPAD_UP/DOWN/LEFT/RIGHT. Allowed leveling
+pairs are BTN_SELECT with BTN_TR/TR2/TL. No example numeric targets are supplied.
+The generator rejects missing measurement records, nonfinite/out-of-screen
+positions, duplicate inputs and unsupported pairs. Extra anchors apply only to
+v0.2; v0.1 is kept as the rollback fixture. Regenerate, check and import as a
+new calibrated profile; do not overwrite the accepted rollback profile.
+
+D-pad investigation found both missing profile targets and a routing gap:
+a first hat event before the hotplug scan did not discover a reconnected
+controller. That gap and digital BTN_DPAD aliases have automated coverage.
+Physical confirmation is still required: inspect `adb shell su -c 'getevent -ql'`,
+press every direction, record ABS_HAT0X/Y signed values and neutral/reversal
+transitions, and confirm the controller node is detected. Event paths are
+transient diagnostic evidence, never persistent profile identity. If events
+arrive from a separate interface, capture its capabilities before extending
+ownership rules; do not merge arbitrary devices into the controller.
+
+After calibration, physically test SELECT held before each shoulder: only
+level-up should fire. Test shoulder-first, SELECT release-first, rapid repeats,
+multiple shoulders, movement + LT attack + leveling, camera/aim coexistence,
+pause/reload/stop, SYN loss where practical and USB reconnect. Check no base
+skill cast or stuck touch occurs. Automated synthetic targets validate the
+runtime; they are not S10e HUD measurements or gameplay acceptance.
