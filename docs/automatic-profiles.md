@@ -132,3 +132,29 @@ enabled flags and device bindings need no migration or restoration for this fix.
 - ProfileDialogOperationTest.java / ProfileSelectorTest.java: outcomes, storage and manual lifecycle.
 - RuntimeRequestGateTest.java / MappingRuntimeTest.java: root queue and input cleanup, including v0.3.
 - docs/automatic-profiles.md: investigation, architecture, validation and rollback.
+
+## Review follow-up: runtime ownership
+
+The PR review identified that rejected publication temporarily assigned a stale
+candidate to shared inputService for teardown, and the final stale check paused
+whatever runtime was current. Both operations could affect a successor.
+
+RuntimeRequestGate now owns the runtime slot. Publication and taking an owner are
+request-checked; detachment compares instance identity. Rejected/post-publication
+stale candidates are disposed directly, never assigned to the shared slot.
+Pause captures its target with invalidation and acts only on that instance.
+Stop takes only its request's owner and rechecks before process exit.
+
+InputService remains the input-cleanup authority. Native initialization and
+teardown stay serialized on the root main looper. Since native mouse state and
+client cursor state include process-wide resources, stale disposal skips that
+shared teardown when a successor owns the slot; candidate Java touches and
+handlers are still released. No monitor is held across Binder callbacks.
+
+RuntimeOwnershipTest adds six deterministic interleavings: an old construction
+finishing after a newer start; a stale post-publication check; deferred pause;
+pause during construction; deferred stop cleanup after restoration; and stop
+cancelling construction. They assert successor identity/activity/held input,
+stale release, rejection of subsequent stale injection and no successor resource
+teardown. The full run now passes 113 tests, debug assembly, both native suites
+and git diff --check. Physical S10e validation remains pending; no deployment.
