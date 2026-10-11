@@ -1,9 +1,11 @@
 package xtr.keymapper.server;
 
-/** Request identity only; never hold a monitor across runtime/Binder callbacks. */
+/** Lifecycle identity and teardown barrier; never hold a monitor across runtime/Binder callbacks. */
 public final class RuntimeRequestGate<T> {
     private volatile T owner;
     private long generation;
+    private int cleanupsInProgress;
+    private final java.util.List<java.lang.ref.WeakReference<T>> disposed = new java.util.ArrayList<>();
     public synchronized long next() { return ++generation; }
     public synchronized boolean isCurrent(long request) { return request == generation; }
     /** Only a short state publication belongs here, never IPC or runtime initialization. */
@@ -13,8 +15,18 @@ public final class RuntimeRequestGate<T> {
         return true;
     }
     public T currentOwner() { return owner; }
+    public static final class Frame<T> {
+        private final long generation;
+        public final T owner;
+        private Frame(long generation, T owner) { this.generation = generation; this.owner = owner; }
+    }
+    public synchronized Frame<T> captureFrame() { return new Frame<>(generation, owner); }
+    /** Called on the lifecycle looper, before dispatching any queued input. */
+    public synchronized boolean accepts(Frame<T> frame) {
+        return frame.generation == generation && frame.owner == owner && cleanupsInProgress == 0;
+    }
     public synchronized boolean publishOwned(long request, T candidate) {
-        if (!isCurrent(request) || owner != null) return false;
+        if (!isCurrent(request) || owner != null || cleanupsInProgress != 0) return false;
         owner = candidate;
         return true;
     }
@@ -28,17 +40,24 @@ public final class RuntimeRequestGate<T> {
         ++generation;
         return owner;
     }
-    /** Detach only this candidate. Cleanup never receives a successor instance. */
+    /** Nonblocking publication barrier; no monitor is held during cleanup/IPC. */
     public void discardOwned(T candidate, java.util.function.BiConsumer<T, Boolean> cleanup) {
         if (candidate == null) return;
-        boolean noSuccessor;
+        boolean releaseSharedResources;
         synchronized (this) {
+            disposed.removeIf(reference -> reference.get() == null);
+            for (java.lang.ref.WeakReference<T> reference : disposed)
+                if (reference.get() == candidate) return;
+            disposed.add(new java.lang.ref.WeakReference<>(candidate));
             if (owner == candidate) owner = null;
-            noSuccessor = owner == null;
+            releaseSharedResources = owner == null && cleanupsInProgress == 0;
+            ++cleanupsInProgress;
         }
-        // Native initialization/teardown is serialized on the remote main looper.
-        // Process-wide native/client resources must be left alone if a successor owns them.
-        cleanup.accept(candidate, noSuccessor);
+        try {
+            cleanup.accept(candidate, releaseSharedResources);
+        } finally {
+            synchronized (this) { --cleanupsInProgress; }
+        }
     }
     public boolean commit(long request, Runnable action) {
         if (!isCurrent(request)) return false;

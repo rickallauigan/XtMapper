@@ -142,7 +142,8 @@ whatever runtime was current. Both operations could affect a successor.
 RuntimeRequestGate now owns the runtime slot. Publication and taking an owner are
 request-checked; detachment compares instance identity. Rejected/post-publication
 stale candidates are disposed directly, never assigned to the shared slot.
-Pause captures its target with invalidation and acts only on that instance.
+Pause/resume/reload use generation-checked actions on the root lifecycle looper;
+a delayed pause cannot override restoration, including reuse of the same runtime.
 Stop takes only its request's owner and rechecks before process exit.
 
 InputService remains the input-cleanup authority. Native initialization and
@@ -156,5 +157,43 @@ finishing after a newer start; a stale post-publication check; deferred pause;
 pause during construction; deferred stop cleanup after restoration; and stop
 cancelling construction. They assert successor identity/activity/held input,
 stale release, rejection of subsequent stale injection and no successor resource
-teardown. The full run now passes 113 tests, debug assembly, both native suites
-and git diff --check. Physical S10e validation remains pending; no deployment.
+teardown. The final run passes 120 Android unit tests (0 failures, 0 errors, 0 skipped),
+debug assembly, both native suite executables, and git diff --check. Python
+profile tests pass: 2 on the PR branch, plus 3 read-only tests on the user's
+unchanged v0.3 working tree; v0.1/v0.2/v0.3 generator checks pass. Native harnesses
+report pass/fail without individual case totals. Physical S10e validation remains
+pending; no deployment.
+
+### Final teardown/publication barrier
+
+The ownership check alone left a gap: after observing an empty slot, cleanup
+could race a successor publication and tear down its shared native/cursor state.
+RuntimeRequestGate claims cleanup by instance identity exactly once and increments
+an in-progress barrier under the same monitor as detachment. Publication is
+rejected until cleanup actually returns; a finally block releases the barrier
+even on failure. Candidate-specific cleanup still runs when another owner exists.
+Weak identity records avoid retaining disposed runtimes. No cleanup, initialization
+or Binder call runs under the gate monitor, and publication never blocks waiting
+for a callback.
+
+The root's existing main Handler serializes runtime initialization, teardown,
+pause/resume/reload, native device reopening and input-frame dispatch. Therefore
+actual initialization cannot overlap teardown either; starts queued during cleanup
+run afterwards and recheck their generation before constructing/publishing. The
+blocking input reader stays on a separate thread, including Wayland stdin.
+Each queued frame captures generation and owner identity and must still match at
+dispatch, preventing old events from being routed into a replacement. InputService
+continues to reject stopped-runtime touch callbacks and release held input; no
+second input-state manager is introduced. Native teardown is attempted even if
+candidate stop fails, with finally blocks ensuring every native cleanup is attempted.
+
+RuntimeLifecycleBarrierTest adds seven deterministic tests: latch-controlled A
+cleanup/B publication, exceptional cleanup, stale frame rejection, 50 rapid
+pause/resume/restoration cycles, delayed pause after same-runtime resume, nested
+candidate cleanup and controller disconnect during pending replacement. Together
+with the six ownership tests, these cover two starts, start/pause, start/stop,
+stop/restart and deferred cleanup after restoration. The latch test verifies gate
+operations remain callable while cleanup is blocked; bounded waits are failure
+guards, not timing-based ordering. Revalidate input latency and Wayland integration
+physically: frame dispatch now shares the lifecycle looper. Existing 5-second
+foreground polling remains unchanged.
