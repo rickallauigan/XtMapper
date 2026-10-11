@@ -21,7 +21,7 @@ public class ShowKeymapService extends Service {
 
     @Override
     public void onDestroy() {
-        editorUi.hideView();
+        if (editorUi != null) editorUi.hideView();
         super.onDestroy();
     }
 

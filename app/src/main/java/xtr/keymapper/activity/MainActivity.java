@@ -353,22 +353,12 @@ public class MainActivity extends AppCompatActivity {
     }
 
     public void changeProfileAppFromCompose(String profileName, Runnable onComplete) {
-        final Context context = MainActivity.this;
-        MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(context);
-        xtr.keymapper.profiles.ProfilesApps.asyncLoadAppsAndThen(context, builder,
-                (p, adapter, loadingDialog) -> {
-                    p.binding.appsGrid.setAdapter(adapter);
-                    loadingDialog.dismiss();
-
-                    androidx.appcompat.app.AlertDialog dialog = builder.setView(p.appsView).show();
-                    p.setListener(packageName -> {
-                        new xtr.keymapper.keymap.KeymapProfiles(context)
-                                .setProfilePackageName(profileName, packageName);
-                        p.onDestroyView();
-                        dialog.dismiss();
-                        if (onComplete != null) runOnUiThread(onComplete);
-                    });
-                });
+        xtr.keymapper.profiles.ProfileSelector.showAppSelectionDialog(this, packageName -> {
+            xtr.keymapper.keymap.KeymapProfiles profiles = new xtr.keymapper.keymap.KeymapProfiles(this);
+            if (!profiles.sharedPref.contains(profileName)) return;
+            profiles.setProfilePackageName(profileName, packageName);
+            if (onComplete != null) runOnUiThread(onComplete);
+        });
     }
 
     public void deleteProfileFromCompose(String profileName) {

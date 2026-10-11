@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
+import android.content.SharedPreferences
+import android.hardware.input.InputManager
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.graphics.Point
@@ -24,6 +26,7 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.Toast
 import androidx.annotation.UiThread
+import androidx.appcompat.app.AlertDialog
 import androidx.core.app.NotificationChannelCompat
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -35,18 +38,42 @@ import xtr.keymapper.keymap.KeymapConfig
 import xtr.keymapper.keymap.KeymapProfile
 import xtr.keymapper.keymap.KeymapProfiles
 import xtr.keymapper.profiles.ProfileSelector
+import xtr.keymapper.profiles.AutomaticProfileResolver
+import xtr.keymapper.profiles.ForegroundProfileSession
 import xtr.keymapper.devices.*
 import xtr.keymapper.server.RemoteServiceHelper
 
 class TouchPointer : Service() {
     private val binder: IBinder = TouchPointerBinder()
     var activityCallback: MainActivityCallback? = null
-    var mService: IRemoteService? = null
-    var selectedProfile: String? = null
+    @Volatile var mService: IRemoteService? = null
+    @Volatile var selectedProfile: String? = null
     private val mHandler = Handler(Looper.getMainLooper())
     private var activityRemoteCallback = false
     private var mWindowManager: WindowManager? = null
     private var displayId = 0
+    private val foreground = ForegroundProfileSession()
+    private var profileDialog: AlertDialog? = null
+    private var displayListener: DisplayListener? = null
+    private var connectedIdentities = emptySet<String>()
+    private val profilePreferences by lazy { getSharedPreferences("profiles", MODE_PRIVATE) }
+    private val devicePreferences by lazy { getSharedPreferences("device_mapping_v1", MODE_PRIVATE) }
+    private val preferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
+        refreshForeground()
+    }
+    private val deviceListener = object : InputManager.InputDeviceListener {
+        override fun onInputDeviceAdded(deviceId: Int) = devicesChanged()
+        override fun onInputDeviceRemoved(deviceId: Int) = devicesChanged()
+        override fun onInputDeviceChanged(deviceId: Int) = devicesChanged()
+    }
+
+    override fun onCreate() {
+        super.onCreate()
+        profilePreferences.registerOnSharedPreferenceChangeListener(preferencesListener)
+        devicePreferences.registerOnSharedPreferenceChangeListener(preferencesListener)
+        connectedIdentities = connectedDeviceIdentities()
+        getSystemService(InputManager::class.java).registerInputDeviceListener(deviceListener, mHandler)
+    }
 
 
     interface MainActivityCallback {
@@ -71,6 +98,9 @@ class TouchPointer : Service() {
             return super.onStartCommand(null, flags, startId)
         }
 
+        foreground.start()
+        profileDialog?.dismiss()
+        pauseMapping()
         // Launch default profile
         this.selectedProfile = i.getStringExtra(EditorActivity.PROFILE_NAME)
         if (this.selectedProfile == null) {
@@ -121,99 +151,88 @@ class TouchPointer : Service() {
         val keymapProfile = KeymapProfiles(this).getProfile(selectedProfile, true)
         connectRemoteService(keymapProfile)
 
-        getSystemService(DisplayManager::class.java).registerDisplayListener(object :
+        displayListener?.let { getSystemService(DisplayManager::class.java).unregisterDisplayListener(it) }
+        displayListener = object :
             DisplayListener {
             override fun onDisplayAdded(displayId: Int) {
             }
 
             override fun onDisplayChanged(displayId: Int) {
-                if (displayId == this@TouchPointer.displayId) {
-                    Point().also {
-                        getSystemService(DisplayManager::class.java).getDisplay(
-                            displayId
-                        ).getRealSize(it)
-                    }.let {
-                        /* We must notify remote service
-                           when device orientation changes
-                           keymap will be scaled in remote service */
-
-                        // Get new instance of remote service to avoid DeadObjectException
-                        connectRemoteService(keymapProfile);
-                    }
-                }
+                if (displayId != this@TouchPointer.displayId) return
+                // Re-read the current profile and scale on connection, never the startup snapshot.
+                if (KeymapConfig(this@TouchPointer).disableAutoProfiling) launchProfile(selectedProfile)
+                else refreshForeground()
             }
 
             override fun onDisplayRemoved(displayId: Int) {
             }
-        }, Handler(Looper.getMainLooper()))
+        }
+        getSystemService(DisplayManager::class.java).registerDisplayListener(displayListener!!, mHandler)
 
 
         return super.onStartCommand(i, flags, startId)
     }
 
     fun launchProfile(profileName: String?) {
+        if (profileName == null) return
         this.selectedProfile = profileName
         val keymapProfile = KeymapProfiles(this).getProfile(selectedProfile, true)
         connectRemoteService(keymapProfile)
     }
 
-    private fun connectRemoteService(profile: KeymapProfile) {
-        if (activityCallback != null) activityCallback!!.updateCmdView1("connecting to server..")
-        RemoteServiceHelper.getInstance(
-            this
-        ) { service: IRemoteService? ->
-            mService = service
-            val keymapConfig = KeymapConfig(this)
-            val display =
-                getSystemService(DisplayManager::class.java).getDisplay(
-                    displayId
-                )
-            val size = Point()
-            display.getRealSize(size) // TODO: getRealSize() deprecated in API level 31
-            mWindowManager =
-                this.displayContext?.getSystemService(WindowManager::class.java)
-            try {
-                if (keymapConfig.disableAutoProfiling) {
-                    mService!!.startServer(
-                        profile,
-                        keymapConfig,
-                        mCallback,
-                        size.x,
-                        size.y,
-                        displayId
-                    )
-                } else {
-                    if (!activityRemoteCallback) {
-                        mService!!.registerActivityObserver(mActivityObserverCallback)
-                        activityRemoteCallback = true
-                    } else if (!profile.disabled) {
-                        mService!!.startServer(
-                            profile,
-                            keymapConfig,
-                            mCallback,
-                            size.x,
-                            size.y,
-                            displayId
-                        )
+    private fun connectRemoteService(profile: KeymapProfile,
+                                     request: ForegroundProfileSession.Request? = foreground.current()) {
+        if (request == null) return
+        val profileName = selectedProfile
+        val expectedDecision = request.packageName?.let { decision(it) }
+        val expectedLines = profileName?.let { profilePreferences.getStringSet(it, null)?.toSet() }
+        activityCallback?.updateCmdView1("connecting to server..")
+        RemoteServiceHelper.getInstance(this) { service ->
+            mHandler.post {
+                foreground.commit(request) {
+                    if (selectedProfile != profileName ||
+                        expectedLines != profileName?.let { profilePreferences.getStringSet(it, null)?.toSet() } ||
+                        (request.packageName != null &&
+                            (decision(request.packageName) != expectedDecision || !canActivate(request, profileName))))
+                        return@commit
+                    try {
+                        if (service == null) throw IllegalStateException("Root service unavailable")
+                        if (mService?.asBinder() != service.asBinder()) activityRemoteCallback = false
+                        mService = service
+                        val config = KeymapConfig(this)
+                        val display = getSystemService(DisplayManager::class.java).getDisplay(displayId)
+                        val size = Point()
+                        display.getRealSize(size)
+                        mWindowManager = displayContext?.getSystemService(WindowManager::class.java)
+                        if (!config.disableAutoProfiling && !activityRemoteCallback) {
+                            service.registerActivityObserver(mActivityObserverCallback)
+                            activityRemoteCallback = true
+                        }
+                        if (config.disableAutoProfiling || (request.packageName != null && !profile.disabled)) {
+                            service.startServer(profile, config, mCallback, size.x, size.y, displayId)
+                            if (config.showControls && !profile.disabled) ShowKeymapService.start(this, profileName)
+                        }
+                    } catch (error: Exception) {
+                        foreground.stop { pauseMapping() }
+                        activityCallback?.updateCmdView1(error.toString())
+                        if (activityCallback != null) activityCallback?.stopPointer() else stopSelf()
+                        Log.e("startServer", error.toString(), error)
                     }
                 }
-                if (keymapConfig.showControls) {
-                    ShowKeymapService.start(this, selectedProfile)
-                }
-            } catch (e: Exception) {
-                if (activityCallback != null) {
-                    activityCallback!!.updateCmdView1(e.toString())
-                    activityCallback!!.stopPointer()
-                } else {
-                    onDestroy()
-                    stopSelf()
-                }
-                Log.e("startServer", e.toString(), e)
             }
         }
     }
 
     override fun onDestroy() {
+        foreground.stop { pauseMapping() }
+        profileDialog?.dismiss()
+        profileDialog = null
+        displayListener?.let { getSystemService(DisplayManager::class.java).unregisterDisplayListener(it) }
+        displayListener = null
+        profilePreferences.unregisterOnSharedPreferenceChangeListener(preferencesListener)
+        devicePreferences.unregisterOnSharedPreferenceChangeListener(preferencesListener)
+        getSystemService(InputManager::class.java).unregisterInputDeviceListener(deviceListener)
+        activityRemoteCallback = false
         if (mService != null) try {
             mService!!.unregisterActivityObserver(mActivityObserverCallback)
             stopServer()
@@ -254,7 +273,8 @@ class TouchPointer : Service() {
         }
 
         override fun requestKeymapProfile(): KeymapProfile {
-            return KeymapProfiles(this@TouchPointer).getProfile(selectedProfile, true)
+            return selectedProfile?.let { KeymapProfiles(this@TouchPointer).getProfile(it, true) }
+                ?: KeymapProfile().apply { disabled = true }
         }
 
         override fun requestKeymapConfig(): KeymapConfig {
@@ -263,28 +283,22 @@ class TouchPointer : Service() {
 
         @UiThread
         override fun switchProfiles() {
+            val request = foreground.current() ?: return
             mHandler.post {
-                val keymapProfiles = KeymapProfiles(this@TouchPointer)
-                val keymapProfile = keymapProfiles.getProfile(selectedProfile, false)
-                val application = keymapProfile.packageName
-
-                if (keymapProfiles.getAllProfilesForApp(application).size == 1) {
-                    Toast.makeText(
-                        this@TouchPointer,
-                        "Only one profile saved for $application",
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    return@post
+                foreground.commit(request) {
+                    val profiles = KeymapProfiles(this@TouchPointer)
+                    val application = if (KeymapConfig(this@TouchPointer).disableAutoProfiling) {
+                        selectedProfile?.let { profiles.getProfile(it, false).packageName } ?: return@commit
+                    } else request.packageName ?: return@commit
+                    profileDialog?.dismiss()
+                    profileDialog = ProfileSelector.select(this@TouchPointer, { profile ->
+                        foreground.commit(request) {
+                            if (KeymapConfig(this@TouchPointer).disableAutoProfiling) {
+                                if (profiles.getAllProfilesForApp(application).containsKey(profile)) launchProfile(profile)
+                            } else activate(request, profile)
+                        }
+                    }, application) { foreground.isCurrent(request) }
                 }
-                ProfileSelector.select(
-                    this@TouchPointer,
-                    { profile: String? ->
-                        this@TouchPointer.selectedProfile = profile
-                        // Reloading profile
-                        connectRemoteService(keymapProfiles.getProfile(profile, true))
-                    },
-                    application
-                )
             }
         }
 
@@ -362,73 +376,76 @@ class TouchPointer : Service() {
      * This implementation is used to receive callbacks from the remote
      * service.
      */
-    private val mActivityObserverCallback: ActivityObserver = object : ActivityObserver.Stub() {
-        private var lastPackageName: String? = null
+    private fun pauseMapping() {
+        try {
+            mService?.pauseMouse()
+        } catch (error: RemoteException) {
+            Log.e("profile switch", "Could not pause previous mapping", error)
+        }
+        stopService(Intent(this, ShowKeymapService::class.java))
+    }
 
-        override fun onForegroundActivitiesChanged(packageName: String) {
-            if (packageName == lastPackageName) return
-            lastPackageName = packageName
-            // Release the previous app's active touches before selecting or prompting for a profile.
-            try {
-                mService?.pauseMouse()
-            } catch (error: RemoteException) {
-                Log.e("profile switch", "Could not pause previous mapping", error)
-            }
-            val context: Context = this@TouchPointer
-            val keymapProfiles = KeymapProfiles(context)
-            if (!keymapProfiles.profileExistsWithPackageName(packageName)) {
-                // No profile found, prompt user to create a new profile
-                mHandler.post {
-                    ProfileSelector.showEnableProfileDialog(
-                        context,
-                        packageName
-                    ) { enabled: Boolean ->
-                        ProfileSelector.createNewProfileForApp(
-                            context,
-                            packageName,
-                            enabled
-                        ) { profile: String? ->
-                            launchProfile(profile)
-                        }
+    private fun connectedDeviceIdentities() = InputDeviceDiscovery.connected().map { it.persistentIdentity }.toSet()
+
+    private fun devicesChanged() {
+        val connected = connectedDeviceIdentities()
+        if (connected == connectedIdentities) return
+        connectedIdentities = connected
+        refreshForeground()
+    }
+
+    private fun decision(packageName: String): AutomaticProfileResolver.Decision {
+        val profiles = KeymapProfiles(this).getAllProfilesForApp(packageName)
+        val store = DeviceMappingStore(this)
+        return AutomaticProfileResolver.resolve(packageName, profiles, store.listGroups(),
+            store.listBindings(), connectedDeviceIdentities())
+    }
+
+    private fun canActivate(request: ForegroundProfileSession.Request, profile: String?): Boolean {
+        val packageName = request.packageName ?: return false
+        val existing = KeymapProfiles(this).getAllProfilesForApp(packageName)[profile] ?: return false
+        if (existing.disabled) return false
+        return when (val next = decision(packageName)) {
+            is AutomaticProfileResolver.Decision.Activate -> next.profile == profile
+            is AutomaticProfileResolver.Decision.SelectExisting -> profile in next.profiles
+            else -> false
+        }
+    }
+
+    private fun activate(request: ForegroundProfileSession.Request, profile: String?) {
+        if (!canActivate(request, profile)) return
+        selectedProfile = profile
+        connectRemoteService(KeymapProfiles(this).getProfile(profile, true), request)
+    }
+
+    private fun refreshForeground() {
+        if (KeymapConfig(this).disableAutoProfiling) return
+        foreground.current()?.packageName?.let { observeForeground(it, true) }
+    }
+
+    private fun observeForeground(packageName: String, force: Boolean = false) {
+        val request = foreground.observe(packageName, { pauseMapping() }, force) ?: return
+        mHandler.post {
+            foreground.commit(request) {
+                profileDialog?.dismiss()
+                profileDialog = null
+                when (val next = decision(packageName)) {
+                    AutomaticProfileResolver.Decision.Unconfigured -> selectedProfile = null
+                    is AutomaticProfileResolver.Decision.Disabled -> selectedProfile = next.profile
+                    is AutomaticProfileResolver.Decision.Activate -> activate(request, next.profile)
+                    is AutomaticProfileResolver.Decision.SelectExisting -> {
+                        selectedProfile = null
+                        profileDialog = ProfileSelector.select(this, { profile ->
+                            foreground.commit(request) { activate(request, profile) }
+                        }, packageName) { foreground.isCurrent(request) }
                     }
-                }
-            } else {
-                // App specific profiles selection dialog
-                mHandler.post {
-                    val store = DeviceMappingStore(context)
-                    val preferred = DeviceGroupResolver.preferredProfile(
-                        store.listGroups(), store.listBindings(),
-                        InputDeviceDiscovery.connected().map { it.persistentIdentity }.toSet(),
-                        packageName, keymapProfiles.getAllProfilesForApp(packageName).mapValues { it.value.packageName }
-                    )
-                    val selectProfile: (String?) -> Unit = { profile ->
-                        // Reloading profile
-                        this@TouchPointer.selectedProfile = profile
-                        val keymapProfile = keymapProfiles.getProfile(profile, true)
-                        if (!keymapProfile.disabled) {
-                            connectRemoteService(keymapProfile)
-                            Toast.makeText(
-                                this@TouchPointer,
-                                "Keymapping enabled for $packageName",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        } else {
-                            try {
-                                mService!!.pauseMouse()
-                            } catch (_: RemoteException) {
-                            }
-                            Toast.makeText(
-                                this@TouchPointer,
-                                "Keymapping disabled for $packageName",
-                                Toast.LENGTH_SHORT
-                            ).show()
-                        }
-                    }
-                    if (preferred != null) selectProfile(preferred)
-                    else ProfileSelector.select(context, { profile -> selectProfile(profile) }, packageName)
                 }
             }
         }
+    }
+
+    private val mActivityObserverCallback: ActivityObserver = object : ActivityObserver.Stub() {
+        override fun onForegroundActivitiesChanged(packageName: String) = observeForeground(packageName)
     }
 
     companion object {

@@ -62,13 +62,24 @@ public class ProfilesApps {
         new Thread(() -> {
             AppsGridAdapter adapter = new AppsGridAdapter(context);
             Handler mHandler = new Handler(Looper.getMainLooper());
-            mHandler.post(() -> l.onAppsLoaded(this, adapter, dialog));
+            mHandler.post(() -> deliverLoaded(adapter, dialog, l));
         }).start();
 
     }
 
+    void deliverLoaded(AppsGridAdapter adapter, AlertDialog dialog, OnAppsLoadedListener listener) {
+        if (!dialog.isShowing() || !ProfileSelector.isContextActive(appsView.getContext())) {
+            onDestroyView();
+            return;
+        }
+        listener.onAppsLoaded(this, adapter, dialog);
+    }
+
     public void setListener(ProfileSelector.OnAppSelectedListener mListener) {
-        this.mListener = mListener;
+        this.mListener = packageName -> {
+            if (binding != null && ProfileSelector.isContextActive(appsView.getContext()))
+                mListener.onAppSelected(packageName);
+        };
     }
 
     View createView(@NonNull LayoutInflater inflater) {
@@ -134,8 +145,9 @@ public class ProfilesApps {
 
             @Override
             public void onClick (View view) {
-                int i = getAdapterPosition();
-                mListener.onAppSelected(appsDataArrayList.get(i).packageName);
+                int i = getBindingAdapterPosition();
+                if (i != RecyclerView.NO_POSITION && binding != null && mListener != null)
+                    mListener.onAppSelected(appsDataArrayList.get(i).packageName);
             }
         }
 

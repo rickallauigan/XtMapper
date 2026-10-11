@@ -40,7 +40,7 @@ import xtr.keymapper.server.event.KeyEventHandler;
 
 public class RemoteService extends IRemoteService.Stub {
     private String currentDevice = "";
-    InputService inputService;
+    private final RuntimeRequestGate<InputService> runtimeRequests = new RuntimeRequestGate<>();
     private OnKeyEventListener mOnKeyEventListener;
     boolean isWaylandClient = false;
     private ActivityObserverService activityObserverService;
@@ -78,8 +78,7 @@ public class RemoteService extends IRemoteService.Stub {
         try {
             ApplicationInfo ai = pm.getApplicationInfo(packageName, 0);
             nativeLibraryDir = ai.nativeLibraryDir;
-            if(!isWaylandClient) new Thread(this::start_getevent).start();
-            else mHandler.post(this::start_getevent);
+            new Thread(this::start_getevent, "XtMapper input reader").start();
         } catch (PackageManager.NameNotFoundException e) {
             Log.e(TAG, e.getMessage(), e);
             throw new RuntimeException(e);
@@ -171,26 +170,31 @@ public class RemoteService extends IRemoteService.Stub {
         String line;
         while ((line = getevent.readLine()) != null) {
             String[] data = line.split(":"); // split a string like "/dev/input/event2: EV_REL REL_X ffffffff"
-            if (addNewDevices(data)) {
-                if (inputService != null) try {
-                    if (isWaylandClient && data[0].contains("wl_pointer"))
-                        inputService.onWaylandMouseEvent(data[1]);
-
-                    KeyEventHandler k = inputService.getKeyEventHandler();
-                    if (!inputService.stopEvents) {
-                        if (!inputService.onControllerEvent(data[0], data[1])) k.handleEvent(data[1]);
-                    } else {
-                        k.handleKeyboardShortcutEvent(data[1]);
-                    }
-                    if (mOnKeyEventListener != null) mOnKeyEventListener.onKeyEvent(line);
-                } catch (RemoteException e) {
-                    throw new RuntimeException(e);
-                }
-            }
+            // The reader only produces frames. Runtime selection and handling happen
+            // on the same looper as initialization, teardown, pause, resume and reload.
+            final String frame = line;
+            RuntimeRequestGate.Frame<InputService> target = runtimeRequests.captureFrame();
+            mHandler.post(() -> handleInputFrame(target, data, frame));
         }
     } catch (Exception e){
         Log.e(TAG, e.getMessage(), e);
     }}
+
+    private void handleInputFrame(RuntimeRequestGate.Frame<InputService> target, String[] data, String line) {
+        if (!runtimeRequests.accepts(target) || !addNewDevices(data)) return;
+        InputService current = target.owner;
+        if (current == null) return;
+        try {
+            if (isWaylandClient && data[0].contains("wl_pointer")) current.onWaylandMouseEvent(data[1]);
+            KeyEventHandler keys = current.getKeyEventHandler();
+            if (!current.stopEvents) {
+                if (!current.onControllerEvent(data[0], data[1])) keys.handleEvent(data[1]);
+            } else keys.handleKeyboardShortcutEvent(data[1]);
+            if (mOnKeyEventListener != null) mOnKeyEventListener.onKeyEvent(line);
+        } catch (RemoteException error) {
+            Log.e(TAG, "Input callback unavailable", error);
+        }
+    }
 
     /**
      * @param data split output of getevent command
@@ -205,9 +209,10 @@ public class RemoteService extends IRemoteService.Stub {
         if (isWaylandClient) return true;
         if (input_event.length >= 3 && input_event[1].equals("EV_REL")
                 && (input_event[2].equals("REL_X") || input_event[2].equals("REL_Y"))) {
-            if (inputService == null) currentDevice = evdev;
-            else if (!currentDevice.equals(evdev) || !inputService.isMouseDeviceCurrent(evdev)) {
-                if (inputService.openDevice(evdev) >= 0) currentDevice = evdev;
+            InputService current = runtimeRequests.currentOwner();
+            if (current == null) currentDevice = evdev;
+            else if (!currentDevice.equals(evdev) || !current.isMouseDeviceCurrent(evdev)) {
+                if (current.openDevice(evdev) >= 0) currentDevice = evdev;
             }
         }
         return true;
@@ -226,30 +231,37 @@ public class RemoteService extends IRemoteService.Stub {
      */
     @Override
     public void startServer(KeymapProfile profile, KeymapConfig keymapConfig, IRemoteServiceCallback cb, int screenWidth, int screenHeight, int displayId) throws RemoteException {
-        if (cb != null) cb.asBinder().linkToDeath(mStartServerDeathRecipient, 0);
-        mHandler.post(() -> {
-            if (inputService != null) {
-                if (isWaylandClient) {
-                    inputService.hideCursor();
-                    inputService.stop();
-                }
-                stopServer(false);
+        long request = runtimeRequests.next();
+        mHandler.post(() -> runtimeRequests.commit(request, () -> {
+            runtimeRequests.discardOwned(runtimeRequests.takeOwned(request), this::stopRuntime);
+            if (!runtimeRequests.isCurrent(request)) return;
+            if (cb != null) try {
+                cb.asBinder().linkToDeath(mStartServerDeathRecipient, 0);
+            } catch (RemoteException deadClient) {
+                return;
             }
             mWindowManager = getWindowManager(displayId);
+            if (keymapConfig.pointerMode != KeymapConfig.POINTER_SYSTEM) addCursorView();
+            else cursorView = null;
 
-            if (keymapConfig.pointerMode != KeymapConfig.POINTER_SYSTEM) {
-                addCursorView();
-            } else {
-                cursorView = null;
-            }
+            final InputService candidate;
             try {
-                inputService = new InputService(profile, keymapConfig, cb, screenWidth, screenHeight, cursorView, isWaylandClient, displayId);
+                candidate = new InputService(profile, keymapConfig, cb, screenWidth, screenHeight,
+                    cursorView, isWaylandClient, displayId);
                 if (!isWaylandClient) {
-                    inputService.setMouseLock(true);
-                    inputService.openDevice(currentDevice);
+                    candidate.setMouseLock(true);
+                    candidate.openDevice(currentDevice);
                 }
             } catch (RemoteException e) {
                 throw new RuntimeException(e);
+            }
+            if (!runtimeRequests.publishOwned(request, candidate)) {
+                runtimeRequests.discardOwned(candidate, this::stopRuntime);
+                return;
+            }
+            if (!runtimeRequests.isCurrent(request)) {
+                runtimeRequests.discardOwned(candidate, this::stopRuntime);
+                return;
             }
             // Launch app/game
             if (!profile.packageName.equals(BuildConfig.APPLICATION_ID) && keymapConfig.disableAutoProfiling) {
@@ -261,43 +273,51 @@ public class RemoteService extends IRemoteService.Stub {
                     throw new RuntimeException(e);
                 }
             }
-        });
+        }));
     }
 
     @Override
     public void destroy() {
-        stopServer(true);
+        stopServer();
     }
 
     @Override
     public void stopServer() {
-        mHandler.post(() -> stopServer(true));
+        long request = runtimeRequests.next();
+        mHandler.post(() -> runtimeRequests.commit(request, () -> stopServer(request, true)));
     }
 
-    private void stopServer(boolean exitProcess) {
-        if (inputService != null) {
-            InputService stopping = inputService;
-            stopping.stopEvents = true;
-            stopping.stop();
-            // Client death must not prevent pointer/native cleanup.
-            try {
-                if (stopping.getCallback() != null) stopping.getCallback().disablePointer();
-                stopping.hideCursor();
-            } catch (Exception error) {
-                Log.w(TAG, "Cursor callback unavailable during stop", error);
-            }
-            if (!isWaylandClient) {
-                stopping.stopMouse();
-                stopping.stopTouchpad();
-                stopping.destroyUinputDev();
-            }
-            if (stopping.getCallback() != null) {
-                try { stopping.getCallback().asBinder().unlinkToDeath(mStartServerDeathRecipient, 0); }
-                catch (java.util.NoSuchElementException ignored) { /* client already died */ }
-            }
-            inputService = null;
+    private void stopServer(long request, boolean exitProcess) {
+        runtimeRequests.discardOwned(runtimeRequests.takeOwned(request), this::stopRuntime);
+        if (!startedFromShell && exitProcess && runtimeRequests.isCurrent(request)) System.exit(0);
+    }
+
+    private void stopRuntime(InputService stopping, boolean releaseSharedResources) {
+        stopping.stopEvents = true;
+        try { stopping.stop(); }
+        finally { if (releaseSharedResources) releaseSharedRuntimeResources(stopping); }
+    }
+
+    private void releaseSharedRuntimeResources(InputService stopping) {
+        // Stale Java state is always released. Shared cursor/native resources belong to
+        // the successor when one exists and must not be touched by stale cleanup.
+        try {
+            if (stopping.getCallback() != null) stopping.getCallback().disablePointer();
+            stopping.hideCursor();
+        } catch (Exception error) {
+            Log.w(TAG, "Cursor callback unavailable during stop", error);
         }
-        if (!startedFromShell && exitProcess) System.exit(0);
+        if (!isWaylandClient) {
+            try { stopping.stopMouse(); }
+            finally {
+                try { stopping.stopTouchpad(); }
+                finally { stopping.destroyUinputDev(); }
+            }
+        }
+        if (stopping.getCallback() != null) {
+            try { stopping.getCallback().asBinder().unlinkToDeath(mStartServerDeathRecipient, 0); }
+            catch (java.util.NoSuchElementException ignored) { /* client already died */ }
+        }
     }
     private final DeathRecipient mKeyEventListenerDeathRecipient = () -> mOnKeyEventListener = null;
 
@@ -332,15 +352,21 @@ public class RemoteService extends IRemoteService.Stub {
      */
     @Override
     public void pauseMouse(){
-        if (inputService != null)
-            if (!inputService.stopEvents) inputService.pauseResumeKeymap();
+        long request = runtimeRequests.next();
+        mHandler.post(() -> runtimeRequests.commit(request, () -> pauseRuntime(runtimeRequests.currentOwner())));
+    }
+
+    private void pauseRuntime(InputService current) {
+        if (current != null && !current.stopEvents) current.pauseResumeKeymap();
     }
 
     @Override
     public void resumeMouse(){
-        if (inputService != null)
-            if (inputService.stopEvents)
-                inputService.pauseResumeKeymap();
+        long request = runtimeRequests.next();
+        mHandler.post(() -> runtimeRequests.commit(request, () -> {
+            InputService current = runtimeRequests.currentOwner();
+            if (current != null && current.stopEvents) current.pauseResumeKeymap();
+        }));
     }
 
     /**
@@ -348,12 +374,16 @@ public class RemoteService extends IRemoteService.Stub {
      */
     @Override
     public void reloadKeymap() {
-        if (inputService != null) inputService.reloadKeymap();
+        long request = runtimeRequests.next();
+        mHandler.post(() -> runtimeRequests.commit(request, () -> {
+            InputService current = runtimeRequests.currentOwner();
+            if (current != null) current.reloadKeymap();
+        }));
     }
 
     @Override
     public boolean isActive() {
-        return inputService != null;
+        return runtimeRequests.currentOwner() != null;
     }
 
 }
