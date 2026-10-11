@@ -10,6 +10,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.platform.ComposeView
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -77,7 +78,7 @@ internal data class AppState(
 // ============ MAIN APP COMPOSABLE ============
 
 @Composable
-private fun KeymapperApp(
+internal fun KeymapperApp(
     state: MutableState<AppState>,
     onToggleService: () -> Unit = {},
     onFixPermission: () -> Unit = {},
@@ -97,6 +98,13 @@ private fun KeymapperApp(
     onSettings: () -> Unit = {},
 ) {
     val currentState = state.value
+    var detailsProfileId by remember { mutableStateOf<String?>(null) }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val detailsCard = currentState.profiles.find { it.id == detailsProfileId }
+    val details = detailsCard?.let { ProfileDetailsReader.read(context, it.id) }
+    LaunchedEffect(detailsProfileId, details) {
+        if (detailsProfileId != null && details == null) detailsProfileId = null
+    }
 
     MaterialTheme(
         colorScheme = darkColorScheme(
@@ -134,7 +142,7 @@ private fun KeymapperApp(
                 ) {
                     LazyColumn(
                         modifier = Modifier
-                            .fillMaxWidth(),
+                            .fillMaxWidth().testTag("profiles-list"),
                         horizontalAlignment = Alignment.CenterHorizontally,
                         contentPadding = PaddingValues(vertical = 16.dp)
                     ) {
@@ -166,7 +174,7 @@ private fun KeymapperApp(
                         profileGrid(
                             profiles = currentState.profiles,
                             isOverlayChecked = currentState.hasOverlayPermission,
-                            onSelectProfile = onSelectProfile,
+                            onSelectProfile = { detailsProfileId = it.id },
                             onLaunchProfile = onLaunchProfile,
                             onEditProfile = onEditProfile,
                             onRenameProfile = onRenameProfile,
@@ -180,6 +188,13 @@ private fun KeymapperApp(
                         )
                     }
                 }
+            }
+
+            if (details != null && detailsCard != null) {
+                ProfileDetailsDialog(details, detailsCard.appName, detailsCard.isActive,
+                    onDismiss = { detailsProfileId = null },
+                    onSelect = { onSelectProfile(detailsCard); detailsProfileId = null },
+                    onEdit = { onEditProfile(detailsCard); detailsProfileId = null }, icon = detailsCard.icon)
             }
 
             AddProfileFAB(
@@ -211,13 +226,9 @@ private fun createComposeState(activity: MainActivity): AppState {
     val keymapProfiles = KeymapProfiles(activity)
     val profiles = mutableListOf<GameProfile>()
 
-    keymapProfiles.getAllProfiles().forEach { (profileName, profile) ->
-        if (profileName == null) {
-            keymapProfiles.deleteProfile(null)
-            return@forEach
-        }
-
-        val packageName = profile.packageName
+    keymapProfiles.sharedPref.all.keys.sorted().forEach { profileName ->
+        val details = ProfileDetailsReader.read(activity, profileName) ?: return@forEach
+        val packageName = details.packageName
         var appName = profileName
         var icon: Drawable? = null
 
@@ -229,9 +240,7 @@ private fun createComposeState(activity: MainActivity): AppState {
             // Keep the profile name and Compose fallback icon.
         }
 
-        val keyCount = keymapProfiles.sharedPref
-            .getStringSet(profileName, emptySet())
-            ?.size ?: 0
+        val keyCount = details.summary.count
 
         profiles += GameProfile(
             id = profileName,
@@ -277,7 +286,13 @@ private fun GameKeyMapperActivityContent(activity: MainActivity) {
             if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) refresh()
         }
         lifecycle.addObserver(observer)
-        onDispose { manager.unregisterInputDeviceListener(listener); lifecycle.removeObserver(observer) }
+        val preferences = KeymapProfiles(activity).sharedPref
+        val profileListener = android.content.SharedPreferences.OnSharedPreferenceChangeListener { _, _ -> refresh() }
+        preferences.registerOnSharedPreferenceChangeListener(profileListener)
+        onDispose {
+            manager.unregisterInputDeviceListener(listener); lifecycle.removeObserver(observer)
+            preferences.unregisterOnSharedPreferenceChangeListener(profileListener)
+        }
     }
 
     KeymapperApp(
@@ -786,7 +801,7 @@ private fun ProfileCard(
 
     Card(
         modifier = modifier
-            .aspectRatio(1f)
+            .heightIn(min = 260.dp)
             .clickable(onClick = onClick),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
@@ -798,7 +813,7 @@ private fun ProfileCard(
         )
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Spacer(modifier = Modifier.height(16.dp))
@@ -846,10 +861,12 @@ private fun ProfileCard(
                 modifier = Modifier.padding(horizontal = 8.dp)
             )
 
+            Text(profile.id, color = KeymapperTheme.TextPrimary, fontSize = 12.sp,
+                maxLines = 2, overflow = TextOverflow.Ellipsis, modifier = Modifier.padding(horizontal = 8.dp))
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "${profile.keyCount} keys mapped",
+                text = "${profile.keyCount} mappings",
                 color = KeymapperTheme.TextSecondary,
                 fontSize = 11.sp
             )
@@ -881,7 +898,7 @@ private fun ProfileCard(
                 }
             }
 
-            Spacer(modifier = Modifier.weight(1f))
+            Spacer(modifier = Modifier.height(8.dp))
 
             Row(
                 modifier = Modifier
