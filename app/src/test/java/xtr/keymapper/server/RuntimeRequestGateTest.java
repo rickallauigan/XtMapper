@@ -38,4 +38,20 @@ public class RuntimeRequestGateTest {
         long restored = gate.next(); assertTrue(gate.publish(restored, () -> published.add("restored")));
         assertEquals(java.util.List.of("restored"), published);
     }
+    @Test public void editorReloadDoesNotInvalidateQueuedResumeButLaterPauseDoes() {
+        RuntimeRequestGate<Object> gate = new RuntimeRequestGate<>();
+        long resume = gate.next(); long reload = gate.currentRequest();
+        assertTrue(gate.commit(resume, () -> {})); assertTrue(gate.commit(reload, () -> {}));
+        gate.next(); assertFalse(gate.commit(reload, () -> fail("stale reload")));
+    }
+
+    @Test public void pauseReadinessCannotReportIdleDuringUnpublishedInitialization() {
+        RuntimeRequestGate<Object> gate = new RuntimeRequestGate<>(); long request = gate.next();
+        assertTrue(gate.commit(request, () -> {
+            assertNull(gate.currentOwner());
+            assertFalse(gate.accepts(gate.captureFrame()));
+        }));
+        assertTrue(gate.accepts(gate.captureFrame()));
+    }
+
 }

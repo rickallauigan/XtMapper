@@ -23,6 +23,7 @@ import xtr.keymapper.server.RemoteServiceHelper;
 
 public class EditorActivity extends Activity {
     public static final String PROFILE_NAME = "profile";
+    public static final String VISUAL = "visual_controller";
     private EditorUI editor;
 
     @Override
@@ -51,14 +52,14 @@ public class EditorActivity extends Activity {
 
         setTheme(R.style.Theme_XtMapper);
 
-        editor = new EditorUI(this, this::editorCallback, selectedProfile, EditorUI.START_EDITOR);
+        editor = new EditorUI(this, this::editorCallback, selectedProfile, getIntent().getBooleanExtra(VISUAL, false) ? EditorUI.VISUAL_EDITOR : EditorUI.START_EDITOR);
 
         KeymapConfig keymapConfig = new KeymapConfig(this);
         if (Settings.canDrawOverlays(this)) {
-            editor.open(keymapConfig.editorOverlay);
+            editor.open(getIntent().getBooleanExtra(VISUAL, false) || keymapConfig.editorOverlay);
         } else {
             editor.open(false);
-            MainActivity.checkOverlayPermission(this);
+            if (!getIntent().getBooleanExtra(VISUAL, false)) MainActivity.checkOverlayPermission(this);
         }
 
         RemoteServiceHelper.getInstance(this, this::onConnection);
@@ -91,6 +92,11 @@ public class EditorActivity extends Activity {
                 dialog.show();
             }
         }
+    }
+
+    @Override
+    public void onBackPressed() {
+        if (editor != null) editor.requestClose(); else super.onBackPressed();
     }
 
     @Override
