@@ -19,6 +19,8 @@ import android.view.WindowInsetsController
 import android.view.WindowManager
 import android.widget.Toast
 import android.widget.FrameLayout
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.ComposeView
 import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.Lifecycle
@@ -65,6 +67,11 @@ class EditorUI(
     private var profileBackup: Set<String>? = null
 
     private var overlayOpen = false
+    private var visualSession: VisualMappingSession? = null
+    private var visualComposeView: ComposeView? = null
+    private var visualReady by androidx.compose.runtime.mutableStateOf(false)
+    private var visualCloseRequested by androidx.compose.runtime.mutableStateOf(false)
+    private var closed = false
 
     // The settings/catalog UI (hidden in SHOW_KEYMAP_ONLY mode)
     private val settingsOverlay: SettingsOverlay?
@@ -125,8 +132,12 @@ class EditorUI(
         if (mService != null) {
             try {
                 mService!!.unregisterOnKeyEventListener(this)
-                mService!!.resumeMouse()
-                mService!!.reloadKeymap()
+                if (startMode != VISUAL_EDITOR) {
+                    mService!!.resumeMouse()
+                    mService!!.reloadKeymap()
+                } else if (KeymapConfig(context).disableAutoProfiling) {
+                    mService!!.resumeMouse(); mService!!.reloadKeymap()
+                }
             } catch (ignored: RemoteException) {
             }
         }
@@ -139,6 +150,17 @@ class EditorUI(
         mService!!.registerOnKeyEventListener(this)
         settingsOverlay!!.onRegisterKeyEventListener()
         mService!!.pauseMouse()
+        if (startMode == VISUAL_EDITOR) checkVisualPause(service!!, 0)
+    }
+
+    private fun checkVisualPause(service: IRemoteService, attempt: Int) {
+        mHandler.post {
+            if (closed || mService !== service) return@post
+            try {
+                visualReady = service.isMappingPaused
+                if (!visualReady && attempt < 40) mHandler.postDelayed({ checkVisualPause(service, attempt + 1) }, 50)
+            } catch (_: RemoteException) { visualReady = false }
+        }
     }
 
     interface KeyInFocusListener {
@@ -172,7 +194,52 @@ class EditorUI(
             mainView.setFocusable(true)
         }
 
-        loadKeymapAfterView()
+        if (startMode == VISUAL_EDITOR) openVisualEditor() else loadKeymapAfterView()
+    }
+
+    fun requestClose() {
+        if (startMode == VISUAL_EDITOR && visualSession?.dirty == true) visualCloseRequested = true
+        else hideView()
+    }
+
+    private fun openVisualEditor() {
+        val saved = (KeymapProfiles(context).sharedPref.all[profileName] as? Set<*>)?.filterIsInstance<String>()?.toSet()
+        val session = try {
+            require(saved != null) { "Profile was deleted or renamed." }
+            VisualMappingSession(profileName!!, saved)
+        } catch (error: IllegalArgumentException) {
+            Toast.makeText(context, error.message ?: "Invalid profile", Toast.LENGTH_LONG).show()
+            hideView(); return
+        }
+        visualSession = session
+        EditorSessionGuard.acquire(this)
+        savedStateRegistryController.performAttach()
+        savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+        mainView!!.setViewTreeLifecycleOwner(this)
+        mainView.setViewTreeSavedStateRegistryOwner(this)
+        mainView.removeAllViews()
+        val compose = ComposeView(context)
+        visualComposeView = compose
+        mainView.addView(compose, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        val devices = xtr.keymapper.devices.InputDeviceDiscovery.connected().filter {
+            it.type == xtr.keymapper.devices.DeviceType.GAMEPAD || it.type == xtr.keymapper.devices.DeviceType.BLUETOOTH_CONTROLLER
+        }.joinToString { it.name }.ifBlank { "Controller disconnected — edit saved bindings offline; verify input mode before play." }
+        val applicationName = try {
+            context.packageManager.getApplicationLabel(context.packageManager.getApplicationInfo(session.profile.packageName, 0)).toString()
+        } catch (_: android.content.pm.PackageManager.NameNotFoundException) { session.profile.packageName }
+        compose.setContent {
+            VisualControllerEditor(session, overlayOpen, visualReady, visualCloseRequested,
+                onKeepEditing = { visualCloseRequested = false },
+                onSave = { try { session.save(context); null } catch (error: Exception) { error.message ?: "Save failed" } },
+                onClose = { hideView() }, onPlaceTarget = {
+                    try {
+                        context.packageManager.getLaunchIntentForPackage(session.profile.packageName)?.let {
+                            context.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                        }
+                    } catch (error: Exception) { Toast.makeText(context, "Open the game manually behind the overlay.", Toast.LENGTH_LONG).show() }
+                }, deviceDescription = devices, applicationName = applicationName)
+        }
     }
 
     fun openSettings() {
@@ -211,6 +278,7 @@ class EditorUI(
             mParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
         }
 
+        if (startMode == VISUAL_EDITOR) mParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
         if (alpha < 1 && alpha > 0) overlayView.setAlpha(alpha)
 
         mWindowManager.addView(overlayView, mParams)
@@ -235,6 +303,10 @@ class EditorUI(
      * @return true if we consume the event
      */
     fun onKey(v: View?, keyCode: Int, event: KeyEvent): Boolean {
+        if (startMode == VISUAL_EDITOR && keyCode == KeyEvent.KEYCODE_BACK) {
+            if (event.action == KeyEvent.ACTION_UP) requestClose()
+            return true
+        }
         if (keyInFocus != null) {
             val key = event.displayLabel.toString()
             if (key.matches("[a-zA-Z0-9]+".toRegex())) {
@@ -358,10 +430,17 @@ class EditorUI(
     }
 
     fun hideView() {
+        if (closed) return
+        closed = true
+        if (startMode == VISUAL_EDITOR) {
+            visualComposeView?.disposeComposition()
+            lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+        }
         if (startMode == START_EDITOR) saveKeymap()
         if (startMode != SHOW_KEYMAP_ONLY) {
             unregisterOnKeyEventListener()
-            settingsOverlay!!.onDestroyView()
+            if (startMode != VISUAL_EDITOR) settingsOverlay!!.onDestroyView()
+            if (startMode == VISUAL_EDITOR) EditorSessionGuard.release(this)
 
             removeView(mainView!!)
             if (editorCallback != null) editorCallback.onHideView()
@@ -370,7 +449,7 @@ class EditorUI(
             // Load keymap config after settingsOverlay wrote config
             val keymapConfig = KeymapConfig(context)
             // We stopped the service, so we must restart it
-            RemoteServiceHelper.runIfActive(context, Runnable {
+            if (startMode != VISUAL_EDITOR) RemoteServiceHelper.runIfActive(context, Runnable {
                 if (keymapConfig.showControls) ShowKeymapService.start(context, profileName)
             })
         } else removeView(keysContainerView)
@@ -604,6 +683,7 @@ class EditorUI(
         /* Start modes */
         const val START_SETTINGS: Int = 0 // Shows full editor with catalog/menu
         const val START_EDITOR: Int = 1 // Shows editor without catalog (save/reset available)
+        const val VISUAL_EDITOR: Int = 3 // Explicit draft save; exit always discards unapplied changes.
         const val SHOW_KEYMAP_ONLY: Int = 2 // Used to show an overlay with active keymapping
         fun resizeView(view: View, x: Int, y: Int) {
             val layoutParams = view.layoutParams

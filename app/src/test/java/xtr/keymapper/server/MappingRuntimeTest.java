@@ -434,6 +434,16 @@ public class MappingRuntimeTest {
         return (IRemoteServiceCallback) Proxy.newProxyInstance(IRemoteServiceCallback.class.getClassLoader(),
                 new Class[]{IRemoteServiceCallback.class},(proxy,method,args)->null);
     }
+
+    @Test public void editorPauseReadinessRequiresReleaseAndRejectsLateTouches() throws Exception {
+        Recorder recorder = new Recorder(); InputService service = service(AIM, null, recorder);
+        service.getMouseEventHandler().handleAimTrigger("KEY_Q", 1);
+        assertFalse(service.isPausedAndReleased()); service.pauseResumeKeymap();
+        assertTrue(service.isPausedAndReleased()); int count = recorder.actions.size();
+        service.injectEvent(10, 20, 1, 39); assertEquals(count, recorder.actions.size());
+        service.pauseResumeKeymap(); assertFalse(service.isPausedAndReleased()); service.stop();
+    }
+
     private static class FakeInput implements IInputInterface {
         final List<Event> events=new ArrayList<>();
         final KeymapProfile profile; final KeymapConfig config=new KeymapConfig(null);

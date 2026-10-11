@@ -58,6 +58,15 @@ class TouchPointer : Service() {
     private var connectedIdentities = emptySet<String>()
     private val profilePreferences by lazy { getSharedPreferences("profiles", MODE_PRIVATE) }
     private val devicePreferences by lazy { getSharedPreferences("device_mapping_v1", MODE_PRIVATE) }
+    private val editorListener: () -> Unit = {
+        mHandler.post {
+            if (xtr.keymapper.editor.EditorSessionGuard.active) {
+                profileDialog?.dismiss(); profileDialog = null
+                foreground.current()?.packageName?.let { observeForeground(it, true) }
+                pauseMapping()
+            } else refreshForeground()
+        }
+    }
     private val preferencesListener = SharedPreferences.OnSharedPreferenceChangeListener { _, _ ->
         refreshForeground()
     }
@@ -69,6 +78,7 @@ class TouchPointer : Service() {
 
     override fun onCreate() {
         super.onCreate()
+        xtr.keymapper.editor.EditorSessionGuard.listen(editorListener)
         profilePreferences.registerOnSharedPreferenceChangeListener(preferencesListener)
         devicePreferences.registerOnSharedPreferenceChangeListener(preferencesListener)
         connectedIdentities = connectedDeviceIdentities()
@@ -182,7 +192,7 @@ class TouchPointer : Service() {
 
     private fun connectRemoteService(profile: KeymapProfile,
                                      request: ForegroundProfileSession.Request? = foreground.current()) {
-        if (request == null) return
+        if (request == null || xtr.keymapper.editor.EditorSessionGuard.active) return
         val profileName = selectedProfile
         val expectedDecision = request.packageName?.let { decision(it) }
         val expectedLines = profileName?.let { profilePreferences.getStringSet(it, null)?.toSet() }
@@ -190,7 +200,7 @@ class TouchPointer : Service() {
         RemoteServiceHelper.getInstance(this) { service ->
             mHandler.post {
                 foreground.commit(request) {
-                    if (selectedProfile != profileName ||
+                    if (xtr.keymapper.editor.EditorSessionGuard.active || selectedProfile != profileName ||
                         expectedLines != profileName?.let { profilePreferences.getStringSet(it, null)?.toSet() } ||
                         (request.packageName != null &&
                             (decision(request.packageName) != expectedDecision || !canActivate(request, profileName))))
@@ -224,6 +234,7 @@ class TouchPointer : Service() {
     }
 
     override fun onDestroy() {
+        xtr.keymapper.editor.EditorSessionGuard.remove(editorListener)
         foreground.stop { pauseMapping() }
         profileDialog?.dismiss()
         profileDialog = null
@@ -402,6 +413,7 @@ class TouchPointer : Service() {
     }
 
     private fun canActivate(request: ForegroundProfileSession.Request, profile: String?): Boolean {
+        if (xtr.keymapper.editor.EditorSessionGuard.active) return false
         val packageName = request.packageName ?: return false
         val existing = KeymapProfiles(this).getAllProfilesForApp(packageName)[profile] ?: return false
         if (existing.disabled) return false
@@ -429,6 +441,7 @@ class TouchPointer : Service() {
             foreground.commit(request) {
                 profileDialog?.dismiss()
                 profileDialog = null
+                if (xtr.keymapper.editor.EditorSessionGuard.active) return@commit
                 when (val next = decision(packageName)) {
                     AutomaticProfileResolver.Decision.Unconfigured -> selectedProfile = null
                     is AutomaticProfileResolver.Decision.Disabled -> selectedProfile = next.profile

@@ -254,6 +254,10 @@ public class InputService implements IInputInterface {
         }
     }
 
+    public synchronized boolean isPausedAndReleased() {
+        return stopEvents && !acceptingTouches && activeTouches.isEmpty();
+    }
+
     public void stopTouchpad() {
         if (touchpadInputMode == KeymapConfig.TOUCHPAD_DIRECT)
             stopTouchpadDirect();

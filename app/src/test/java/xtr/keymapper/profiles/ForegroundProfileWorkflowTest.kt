@@ -138,4 +138,19 @@ class ForegroundProfileWorkflowTest {
         listener.onInputDeviceAdded(-1); listener.onInputDeviceChanged(99); idle()
         assertEquals(listOf("G8 v0.3"), started); assertEquals(1, pauses)
     }
+    @Test fun calibrationBlocksForegroundActivationAndRestoresPreferredOnExit() {
+        val lease = Any()
+        foreground(mlbb); val before = started.toList(); val profilesBefore = storage(); val groupsBefore = bindings()
+        try {
+            xtr.keymapper.editor.EditorSessionGuard.acquire(lease); idle()
+            foreground("file.manager"); foreground(mlbb)
+            assertEquals(before, started)
+            profiles.sharedPref.edit().putStringSet("G8 v0.3", profiles.sharedPref.getStringSet("G8 v0.3", null)!! + "BTN_SELECT 1 2 0").commit()
+            idle(); assertEquals(before, started)
+        } finally { xtr.keymapper.editor.EditorSessionGuard.release(lease); idle() }
+        assertEquals(before + "G8 v0.3", started)
+        assertEquals(groupsBefore, bindings())
+        assertEquals(profilesBefore.keys, storage().keys)
+    }
+
 }

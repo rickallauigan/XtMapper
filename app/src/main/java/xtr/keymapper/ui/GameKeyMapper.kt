@@ -86,6 +86,7 @@ internal fun KeymapperApp(
     onSelectProfile: (GameProfile) -> Unit = {},
     onLaunchProfile: (GameProfile) -> Unit = {},
     onEditProfile: (GameProfile) -> Unit = {},
+    onVisualEditProfile: (GameProfile) -> Unit = {},
     onRenameProfile: (GameProfile) -> Unit = {},
     onChangeProfileApp: (GameProfile) -> Unit = {},
     onDeleteProfile: (GameProfile) -> Unit = {},
@@ -177,6 +178,7 @@ internal fun KeymapperApp(
                             onSelectProfile = { detailsProfileId = it.id },
                             onLaunchProfile = onLaunchProfile,
                             onEditProfile = onEditProfile,
+                            onVisualEditProfile = onVisualEditProfile,
                             onRenameProfile = onRenameProfile,
                             onChangeProfileApp = onChangeProfileApp,
                             onDeleteProfile = onDeleteProfile,
@@ -194,7 +196,8 @@ internal fun KeymapperApp(
                 ProfileDetailsDialog(details, detailsCard.appName, detailsCard.isActive,
                     onDismiss = { detailsProfileId = null },
                     onSelect = { onSelectProfile(detailsCard); detailsProfileId = null },
-                    onEdit = { onEditProfile(detailsCard); detailsProfileId = null }, icon = detailsCard.icon)
+                    onEdit = { onEditProfile(detailsCard); detailsProfileId = null }, icon = detailsCard.icon,
+                    onVisualEdit = { onVisualEditProfile(detailsCard); detailsProfileId = null })
             }
 
             AddProfileFAB(
@@ -321,6 +324,11 @@ private fun GameKeyMapperActivityContent(activity: MainActivity) {
             activity.selectProfileFromCompose(it.profileNameForActivity())
             activity.startEditorFromCompose()
             refresh()
+        },
+        onVisualEditProfile = {
+            activity.startActivity(android.content.Intent(activity, xtr.keymapper.editor.EditorActivity::class.java)
+                .putExtra(xtr.keymapper.editor.EditorActivity.PROFILE_NAME, it.id)
+                .putExtra(xtr.keymapper.editor.EditorActivity.VISUAL, true))
         },
         onRenameProfile = {
             activity.renameProfileFromCompose(it.profileNameForActivity()) { refresh() }
@@ -628,6 +636,7 @@ private fun LazyListScope.profileGrid(
     onSelectProfile: (GameProfile) -> Unit,
     onLaunchProfile: (GameProfile) -> Unit,
     onEditProfile: (GameProfile) -> Unit,
+    onVisualEditProfile: (GameProfile) -> Unit,
     onRenameProfile: (GameProfile) -> Unit,
     onChangeProfileApp: (GameProfile) -> Unit,
     onDeleteProfile: (GameProfile) -> Unit,
@@ -726,6 +735,7 @@ private fun LazyListScope.profileGrid(
                     onClick = { onSelectProfile(rowItems[0]) },
                     onLaunch = { onLaunchProfile(rowItems[0]) },
                     onEdit = { onEditProfile(rowItems[0]) },
+                    onVisualEdit = { onVisualEditProfile(rowItems[0]) },
                     onRename = { onRenameProfile(rowItems[0]) },
                     onChangeApp = { onChangeProfileApp(rowItems[0]) },
                     onDelete = { onDeleteProfile(rowItems[0]) },
@@ -741,6 +751,7 @@ private fun LazyListScope.profileGrid(
                         onClick = { onSelectProfile(rowItems[1]) },
                         onLaunch = { onLaunchProfile(rowItems[1]) },
                         onEdit = { onEditProfile(rowItems[1]) },
+                        onVisualEdit = { onVisualEditProfile(rowItems[1]) },
                         onRename = { onRenameProfile(rowItems[1]) },
                         onChangeApp = { onChangeProfileApp(rowItems[1]) },
                         onDelete = { onDeleteProfile(rowItems[1]) },
@@ -791,6 +802,7 @@ private fun ProfileCard(
     onClick: () -> Unit,
     onLaunch: () -> Unit,
     onEdit: () -> Unit,
+    onVisualEdit: () -> Unit,
     onRename: () -> Unit,
     onChangeApp: () -> Unit,
     onDelete: () -> Unit,
@@ -930,6 +942,7 @@ private fun ProfileCard(
         expanded = showMenu,
         onDismissRequest = { showMenu = false }
     ) {
+        ProfileMenuItem("Visual Controller Edit", Icons.Default.Gamepad, onVisualEdit) { showMenu = false }
         ProfileMenuItem("Edit Keymap", Icons.Default.Edit, onEdit) { showMenu = false }
         ProfileMenuItem("Rename", Icons.Default.DriveFileRenameOutline, onRename) { showMenu = false }
         ProfileMenuItem("Change App", Icons.Default.Apps, onChangeApp) { showMenu = false }

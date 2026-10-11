@@ -12,14 +12,23 @@ import androidx.compose.material.icons.filled.Gamepad
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun ProfileDetailsDialog(details: SavedProfileDetails, appName: String, selected: Boolean,
-    onDismiss: () -> Unit, onSelect: () -> Unit, onEdit: () -> Unit, icon: android.graphics.drawable.Drawable? = null) {
+    onDismiss: () -> Unit, onSelect: () -> Unit, onEdit: () -> Unit, icon: android.graphics.drawable.Drawable? = null, onVisualEdit: (() -> Unit)? = null) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
+        ProfileDetailsContent(details, appName, selected, onDismiss, onSelect, onEdit, icon, onVisualEdit)
+    }
+}
+
+@Composable
+internal fun ProfileDetailsContent(details: SavedProfileDetails, appName: String, selected: Boolean,
+    onDismiss: () -> Unit, onSelect: () -> Unit, onEdit: () -> Unit,
+    icon: android.graphics.drawable.Drawable? = null, onVisualEdit: (() -> Unit)? = null) {
         Surface(Modifier.widthIn(max = 640.dp).fillMaxWidth().fillMaxHeight(.9f).padding(12.dp),
             shape = MaterialTheme.shapes.extraLarge, tonalElevation = 8.dp) {
             Column(Modifier.padding(20.dp)) {
@@ -30,7 +39,7 @@ fun ProfileDetailsDialog(details: SavedProfileDetails, appName: String, selected
                         modifier = Modifier.size(48.dp))
                     IconButton(onClick = onDismiss) { Icon(Icons.Default.Close, contentDescription = "Close mapping details") }
                 }
-                LazyColumn(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LazyColumn(Modifier.weight(1f).testTag("details-list"), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     item {
                         Text(details.id, style = MaterialTheme.typography.headlineSmall)
                         Text(appName, style = MaterialTheme.typography.titleMedium)
@@ -49,13 +58,13 @@ fun ProfileDetailsDialog(details: SavedProfileDetails, appName: String, selected
                     }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                if (onVisualEdit != null) OutlinedButton(onClick = onVisualEdit, modifier = Modifier.fillMaxWidth(), enabled = details.error == null) { Text("Visual Controller Edit") }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f), enabled = details.error == null) { Text("Edit Keymap") }
                     Button(onClick = onSelect, modifier = Modifier.weight(1f), enabled = !selected && details.error == null) { Text(if (selected) "Selected" else "Select Profile") }
                 }
             }
         }
-    }
 }
 
 @Composable

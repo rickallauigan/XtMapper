@@ -5,7 +5,9 @@ public final class RuntimeRequestGate<T> {
     private volatile T owner;
     private long generation;
     private int cleanupsInProgress;
+    private int lifecycleActions;
     private final java.util.List<java.lang.ref.WeakReference<T>> disposed = new java.util.ArrayList<>();
+    public synchronized long currentRequest() { return generation; }
     public synchronized long next() { return ++generation; }
     public synchronized boolean isCurrent(long request) { return request == generation; }
     /** Only a short state publication belongs here, never IPC or runtime initialization. */
@@ -23,7 +25,7 @@ public final class RuntimeRequestGate<T> {
     public synchronized Frame<T> captureFrame() { return new Frame<>(generation, owner); }
     /** Called on the lifecycle looper, before dispatching any queued input. */
     public synchronized boolean accepts(Frame<T> frame) {
-        return frame.generation == generation && frame.owner == owner && cleanupsInProgress == 0;
+        return frame.generation == generation && frame.owner == owner && cleanupsInProgress == 0 && lifecycleActions == 0;
     }
     public synchronized boolean publishOwned(long request, T candidate) {
         if (!isCurrent(request) || owner != null || cleanupsInProgress != 0) return false;
@@ -60,9 +62,16 @@ public final class RuntimeRequestGate<T> {
         }
     }
     public boolean commit(long request, Runnable action) {
-        if (!isCurrent(request)) return false;
-        action.run();
-        return isCurrent(request);
+        synchronized (this) {
+            if (!isCurrent(request)) return false;
+            ++lifecycleActions;
+        }
+        try {
+            action.run();
+            return isCurrent(request);
+        } finally {
+            synchronized (this) { --lifecycleActions; }
+        }
     }
     public void invalidate(Runnable cleanup) {
         next();

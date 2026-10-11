@@ -24,5 +24,6 @@ interface IRemoteService {
     void pauseMouse() = 9;
     void reloadKeymap() = 10;
     boolean isActive() = 11;
+    boolean isMappingPaused() = 12; // Readiness after existing touch cleanup, not a second input state.
 
 }

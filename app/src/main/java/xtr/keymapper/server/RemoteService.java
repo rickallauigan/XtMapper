@@ -374,11 +374,19 @@ public class RemoteService extends IRemoteService.Stub {
      */
     @Override
     public void reloadKeymap() {
-        long request = runtimeRequests.next();
+        // Reload belongs to the current lifecycle request; it must not cancel a
+        // preceding resume posted by the editor's existing exit path.
+        long request = runtimeRequests.currentRequest();
         mHandler.post(() -> runtimeRequests.commit(request, () -> {
             InputService current = runtimeRequests.currentOwner();
             if (current != null) current.reloadKeymap();
         }));
+    }
+
+    @Override
+    public boolean isMappingPaused() {
+        RuntimeRequestGate.Frame<InputService> frame = runtimeRequests.captureFrame();
+        return (frame.owner == null || frame.owner.isPausedAndReleased()) && runtimeRequests.accepts(frame);
     }
 
     @Override
