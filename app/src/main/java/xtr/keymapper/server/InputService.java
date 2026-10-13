@@ -94,6 +94,7 @@ public class InputService implements IInputInterface {
             if (action == UP) activeTouches.remove(pointerId);
             else activeTouches.put(pointerId, new float[]{x, y});
         }
+        InputDiagnostics.touch(pointerId, action, activeTouches.size());
         switch (action) {
             case UP:
                 input.injectTouch(MotionEvent.ACTION_UP, pointerId, 0.0f, x, y);
@@ -102,7 +103,8 @@ public class InputService implements IInputInterface {
                 input.injectTouch(MotionEvent.ACTION_DOWN, pointerId, 1.0f, x, y);
                 break;
             case MOVE:
-                input.injectTouch(MotionEvent.ACTION_MOVE, pointerId, 0.0f, x, y);
+                // MOVE updates a held finger; zero pressure incorrectly signals an unloaded contact.
+                input.injectTouch(MotionEvent.ACTION_MOVE, pointerId, 1.0f, x, y);
                 break;
         }
     }

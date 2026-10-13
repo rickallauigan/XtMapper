@@ -136,3 +136,19 @@ two Python generator tests, v0.2/v0.1 consistency and `git diff --check` passed.
 Build used temporary Android SDK API 37.0 and the existing JDK 21. Toolchain
 setup did not change project build configuration. Installation and human
 Hero Training acceptance have not been performed for these changes.
+
+## 2026-10-14 — Phase 1 gameplay stability (#29, #26, #14)
+
+Branched from current origin/dev 3fc89c6, preserving untracked prior Codex
+work. Fixed held MOVE pressure, async injection-mode/display separation,
+MotionEvent recycling and shared Input pointer-buffer synchronization. Added
+real MotionEvent overlap/lifecycle/concurrent-producer regression tests and
+opt-in debug traces. Audited v0.2 LT/A swap and added separately generated,
+measured-only rear-leveling support with duplicate/inconsistent-target guards.
+No Skill 1/2 level-up measurements or committed v0.3 were available.
+
+VALIDATED: 161 Android tests/build, 4 Python tests, both generator versions
+and both native suites pass. No phone commands, installs, service changes or
+profile/configuration changes were performed. Gameplay acceptance remains
+pending; all three issues remain open. See phase1-gameplay-stability.md and
+phase1-profile-mappings.md for controlled diagnostics, checklist and rollback.

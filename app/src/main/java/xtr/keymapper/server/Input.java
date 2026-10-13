@@ -50,7 +50,7 @@ public class Input {
         }
     }
 
-    public boolean noPointersDown() {
+    public synchronized boolean noPointersDown() {
         if (pointerCount > 0) {
             pointerCount = pointersState.update(pointerProperties, pointerCoords);
             for (int i = 0; i < pointerCount; i++) {
@@ -107,7 +107,7 @@ public class Input {
         injectInputEvent(motionEvent);
     }
 
-    void injectMouseClick(long pointerId, float x, float y, boolean pressed, int actionButton) {
+    synchronized void injectMouseClick(long pointerId, float x, float y, boolean pressed, int actionButton) {
         long now = SystemClock.uptimeMillis();
 
         final float pressure = 1.0f;
@@ -219,7 +219,7 @@ public class Input {
         mScrollThread.onScrollEvent(x, y, value);
     }
 
-    private void injectScroll(ScrollEvent event, float value) {
+    private synchronized void injectScroll(ScrollEvent event, float value) {
         long now = SystemClock.uptimeMillis();
 
         MotionEvent.PointerProperties props = pointerProperties[0];
@@ -240,13 +240,18 @@ public class Input {
 
     private void injectInputEvent(MotionEvent motionEvent)  {
         try {
+            InputDiagnostics.motion(motionEvent);
             // Set display ID for the motion event using reflection
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && setDisplayIdMethod != null) {
                 setDisplayIdMethod.invoke(motionEvent, displayId);
             }
-            injectInputEventMethod.invoke(inputManager, motionEvent, displayId);
+            // The second argument is injection MODE, not the target display.
+            // Display routing is set on the event above; keep delivery asynchronous.
+            injectInputEventMethod.invoke(inputManager, motionEvent, 0);
         } catch (IllegalAccessException | InvocationTargetException e) {
             Log.e(RemoteService.TAG, e.getMessage(), e);
+        } finally {
+            motionEvent.recycle();
         }
     }
 
