@@ -105,3 +105,12 @@ generator `--check` commands and native controller/mouse suites PASS.
 APK: `app/build/outputs/apk/debug/app-debug.apk` (built, NOT installed).
 Existing toolchain deprecation/native JNI warnings are outside this patch.
 Physical acceptance for the Phase 1 changes is PENDING.
+
+## PR CI follow-up
+
+Gameplay validation runs on pull requests targeting dev and manual dispatch. It
+checks both rollback generators, the Python suite, native controller/mouse
+suites, and Android unit tests/debug build, uploading test reports even when
+validation fails. It uses read-only repository permissions and no signing
+secrets, release publication or device access. CI success is independent
+automated evidence, not a substitute for the pending physical checkpoints.
