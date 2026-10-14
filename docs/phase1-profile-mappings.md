@@ -8,10 +8,15 @@ Regen and Recall remain unchanged. ABS_Z/ABS_RZ must never activate either
 binding; runtime digital-trigger and overlapping-input tests are separate
 from this generator audit.
 
-Neither committed profile contains BTN_THUMBR/BTN_THUMBL or a measured
-skill-level-up target. No committed v0.3 or mlbb-extra-anchors.json exists.
-The reported installed/local profile therefore cannot be corrected from
-repository coordinates alone. This audit does not modify the phone, its
+The v0.1/v0.2 rollback fixtures contain no rear leveling targets. The approved
+October 11 v0.3 export has now been recovered read-only: its payload is identical
+in the original v0.3 ZIP and the verified export ZIP. Source archive and payload
+SHA-256 values are recorded in `mlbb-gamesir-g8-v0.3-anchors.json`.
+The recovered measured actions are R4/R3 Skill 1 (+) at (1551, 846.5), L4/L3
+Skill 2 (+) at (1660.5, 646), and SELECT Ultimate (+) at (1860, 536), all with
+zero fixed-mapping offset. Historical archive recovery is not current physical
+revalidation. The installed preferred profile may have subsequent local edits;
+never overwrite it implicitly. This audit does not modify the phone, its
 preferred profile, running service, or nine-profile backup baseline.
 
 R4 mirrors R3 (BTN_THUMBR), and L4 mirrors L3 (BTN_THUMBL) in the documented
@@ -32,7 +37,10 @@ Any existing SELECT+RB / SELECT+RT chord must use the same respective measured
 position; inconsistent or duplicate skill targets are rejected. Existing
 SELECT+LB Ultimate chords and other utilities remain unchanged.
 
-No deployable new profile is supplied until these missing measurements exist.
+`--version 0.3` now generates the recovered archive-identical fixture from the
+labeled action JSON. It preserves v0.2 combat/camera bindings and appends the
+three measured upgrades. `--rear-leveling` remains a separate opt-in path for
+future approved measurements, and cannot be combined with version 0.3.
 The rear-generation option refuses both committed rollback output paths. Normal
 v0.1/v0.2 generation is unchanged; Python tests use synthetic positions only.
 
@@ -59,5 +67,5 @@ v0.1/v0.2 generation is unchanged; Python tests use synthetic positions only.
 Rollback: retain the untouched preferred-profile export and nine-profile backup;
 restore only the changed profile/binding through normal import after approval.
 Do not clear data, uninstall, restore unrelated profiles wholesale, or replace
-an installed local v0.3 with v0.2 implicitly. The committed v0.1/v0.2 fixtures
+an installed local v0.3 with v0.2 implicitly. The committed v0.1/v0.2/v0.3 fixtures
 remain available for intentional preset rollback, not automatic deployment.

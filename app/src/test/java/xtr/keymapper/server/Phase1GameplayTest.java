@@ -121,6 +121,27 @@ public class Phase1GameplayTest {
             }
         }
     }
+    @Test public void ltReleaseWithStickStillDisplacedAndReconnectDoNotLeavePhantomState() throws Exception {
+        for(boolean repeat:List.of(false,true))try(var rig=new Rig(repeat)) {
+            rig.monitor.event("pad","EV_ABS ABS_X 000000ff");
+            rig.button("BTN_TL2",true);rig.button("BTN_TR",true);rig.aim();
+            rig.button("BTN_TL2",false);
+            int released=rig.capture.events.size();rig.tick(500);
+            rig.monitor.event("pad","EV_ABS ABS_X 000000ff");
+            rig.monitor.event("pad","EV_SYN SYN_REPORT 00000000");
+            assertEquals("held native stick neither synthesizes touch nor restarts LT",released,rig.capture.events.size());
+            rig.button("BTN_TR",false);assertValid(rig.capture.events);
+            rig.button("BTN_TL2",true);rig.button("BTN_TR2",true);
+            rig.nodes.clear();Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250));
+            assertValid(rig.capture.events);int disconnected=rig.capture.events.size();rig.tick(500);
+            assertEquals(disconnected,rig.capture.events.size());
+            rig.nodes.put("pad",new long[]{1,3,0,255,128,0,255,128});
+            Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(250));
+            rig.button("BTN_TL2",true);rig.button("BTN_TL",true);rig.aim();
+            assertTrue(rig.capture.events.size()>disconnected);
+            rig.button("BTN_TL",false);rig.button("BTN_TL2",false);assertValid(rig.capture.events);
+        }
+    }
     @Test public void concurrentTouchProducersAndHoverQueriesKeepOneValidStream() throws Exception {
         Capture capture=new Capture();Input.injectInputEventMethod=Capture.class.getMethod("inject",InputEvent.class,int.class);
         Input.inputManager=capture;Input.setDisplayIdMethod=null;var input=new Input(0);

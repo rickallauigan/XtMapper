@@ -1,0 +1,35 @@
+{
+  "viewport": [
+    2280,
+    1080
+  ],
+  "origin": [
+    0,
+    0
+  ],
+  "provenance": {
+    "source": "MLBB GameSir G8 S10e v0.3, approved Oct 11 export; identical entry in verified export",
+    "capture_date": "2026-10-11",
+    "archive_sha256": "370dfd6194c999a1d22ce519153d0495c8101d9ca6c6f45d12060253f2e7e0e6",
+    "verified_archive_sha256": "8962b1ca0c3774979daa08d6b4dd74dc5344fc435ce0925e462706d00c3a90e0",
+    "profile_sha256": "af6b2c2831e9da084d615caf99a073a46284b7e08906f301dbdc3c1a01efa2f9",
+    "status": "Recovered historical measured anchors; current HUD/gameplay reconfirmation pending"
+  },
+  "actions": {
+    "ultimate_level_up": {
+      "x": 1860,
+      "y": 536,
+      "measurement": "2026-10-11 approved v0.3 archive; global coordinates, zero fixed-mapping offset"
+    },
+    "skill1_level_up": {
+      "x": 1551,
+      "y": 846.5,
+      "measurement": "2026-10-11 approved v0.3 archive; global coordinates, zero fixed-mapping offset"
+    },
+    "skill2_level_up": {
+      "x": 1660.5,
+      "y": 646,
+      "measurement": "2026-10-11 approved v0.3 archive; global coordinates, zero fixed-mapping offset"
+    }
+  }
+}

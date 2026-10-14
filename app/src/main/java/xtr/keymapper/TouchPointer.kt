@@ -320,10 +320,15 @@ class TouchPointer : Service() {
             if (keymapConfig.pointerMode == KeymapConfig.POINTER_OVERLAY) {
                 keymapConfig.pointerMode = KeymapConfig.POINTER_COMBINED
                 keymapConfig.applySharedPrefs()
-                activityCallback!!.stopPointer()
-                try {
-                    stopServer()
-                } catch (_: RemoteException) {
+                // This is a synchronous callback during remote InputService construction.
+                // The activity may not be bound yet; defer teardown until the callback
+                // returns rather than re-entering the remote runtime's creation lock.
+                mHandler.post {
+                    activityCallback?.stopPointer()
+                    try {
+                        mService?.stopServer()
+                    } catch (_: RemoteException) {
+                    }
                 }
                 return
             }

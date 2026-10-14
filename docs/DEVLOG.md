@@ -152,3 +152,35 @@ and both native suites pass. No phone commands, installs, service changes or
 profile/configuration changes were performed. Gameplay acceptance remains
 pending; all three issues remain open. See phase1-gameplay-stability.md and
 phase1-profile-mappings.md for controlled diagnostics, checklist and rollback.
+
+## 2026-10-14 — Phase 1 post-merge anchor follow-up
+
+Confirmed merged PR #30 baseline 7a69ce8a and successful post-merge APK CI.
+Read-only USB inspection identifies SM-G970F/beyond0lte, active s10etest
+package/service and one saved v0.3. A new /tmp snapshot and installed APK copy
+preserve that state without overwriting the original nine-profile backup.
+No G8 is currently connected; no gameplay test/install/service change occurred.
+
+Reproduced fixed-key editor save drift: center coordinates gain marker pivot
+offset. Loaded markers now preserve effective anchors and serialize canonical
+centers; legacy offsets scale with effective targets. Saved v0.3 attack and rear
+entries contain 94.5 offsets; their actual target displacement is evidence, not
+a claimed diagnosis of MLBB native-input suppression or certified (+) positions.
+
+165 Android tests/build pass; 4 Python tests, both rollback checks and native
+controller/mouse suites pass. Added no-op/drag/scale editor regressions and
+LT-displaced-stick/reconnect MotionEvent regression. See phase1-anchor-followup.md
+for pending physical acceptance, protected installed state and staging/rollback.
+
+## 2026-10-14 — Phase 1 isolated gameplay follow-up
+
+Recovered historical v0.3 (+) anchors from matching approved exports; preserved
+v0.1/v0.2 and recovered v0.3 references. A separate 80-pixel controller-aim
+profile prevents the user-reproduced RT-to-Ultimate unintended cast. Human
+confirmed LT + native movement + RB/RT/LB aim/cast in staging, both LT/skill
+press orders, directional A/Flicker and distinct rear upgrades. Raw captures
+proved both rear buttons initially emitted L3; explicitly authorized R4→R3
+programming restored separate upgrades. Original app APK/profile untouched.
+Added safe asynchronous cursor migration with two regression tests.
+167 Android tests, 9 Python tests, four fixtures and native suites PASS.
+See phase1-anchor-followup.md for authorization, evidence and causal limits.

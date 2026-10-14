@@ -96,5 +96,80 @@ class RearLevelingTest(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     generator.generate(rear_leveling=True)
 
+class RecoveredV03Test(unittest.TestCase):
+    def test_recovered_archive_parity_roles_aliases_and_zero_offsets(self):
+        import hashlib
+        anchors = json.loads((ROOT / 'mlbb-gamesir-g8-v0.3-anchors.json').read_text())
+        generated = generator.generate('0.3')
+        self.assertEqual(generated, (ROOT / 'mlbb-gamesir-g8-v0.3.txt').read_text())
+        self.assertEqual(anchors['provenance']['profile_sha256'], hashlib.sha256(generated.encode()).hexdigest())
+        self.assertTrue(generated.startswith(generator.generate('0.2')))
+        targets = {line.split()[0]: line.split()[1:] for line in generated.splitlines() if line.startswith(('BTN_SELECT ', 'BTN_THUMBR ', 'BTN_THUMBL '))}
+        self.assertEqual({'BTN_SELECT': ['1860', '536', '0'], 'BTN_THUMBR': ['1551', '846.5', '0'], 'BTN_THUMBL': ['1660.5', '646', '0']}, targets)
+        self.assertNotEqual(targets['BTN_THUMBR'][:2], targets['BTN_THUMBL'][:2])
+        self.assertEqual(1, generated.count('BTN_THUMBR'))
+        self.assertEqual(1, generated.count('BTN_THUMBL'))
+        with self.assertRaises(ValueError):
+            generator.generate('0.3', rear_leveling=True)
+
+    def test_recovered_binding_conflicts_and_base_viewport_mismatch_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            kbm = (ROOT / 'mlbb-kbm-v0.1.txt').read_text()
+            (root / 'mlbb-kbm-v0.1.txt').write_text(kbm)
+            (root / 'mlbb-gamesir-g8-v0.3-anchors.json').write_text(
+                (ROOT / 'mlbb-gamesir-g8-v0.3-anchors.json').read_text())
+            with patch.object(generator, 'ROOT', root):
+                extras = root / 'mlbb-extra-anchors.json'
+                extras.write_text(json.dumps({'chords': [{'modifier': 'BTN_SELECT',
+                    'trigger': 'BTN_TR', 'x': 1551, 'y': 846.5,
+                    'measurement': 'synthetic collision test'}]}))
+                with self.assertRaisesRegex(ValueError, 'conflicts'):
+                    generator.generate('0.3')
+                extras.unlink()
+                (root / 'mlbb-kbm-v0.1.txt').write_text(kbm.replace(
+                    'SCREENSIZE 2280 1080', 'SCREENSIZE 2400 1080'))
+                with self.assertRaisesRegex(ValueError, 'viewport'):
+                    generator.generate('0.3')
+
+    def test_bad_recovered_measurements_rejected(self):
+        import copy
+        anchors = json.loads((ROOT / 'mlbb-gamesir-g8-v0.3-anchors.json').read_text())
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'mlbb-kbm-v0.1.txt').write_text((ROOT / 'mlbb-kbm-v0.1.txt').read_text())
+            path = root / 'mlbb-gamesir-g8-v0.3-anchors.json'
+            corruptions = [lambda a: a['actions']['skill1_level_up'].update(x=float('nan')),
+                lambda a: a['actions']['skill1_level_up'].update(x=True),
+                lambda a: a['actions']['skill1_level_up'].update(x=2280),
+                lambda a: a['actions']['skill1_level_up'].update(measurement=''),
+                lambda a: a['actions'].pop('skill1_level_up'),
+                lambda a: a['actions'].update(skill1_level_up=a['actions']['skill2_level_up'].copy()),
+                lambda a: a.update(origin=[116, 0])]
+            with patch.object(generator, 'ROOT', root):
+                for corrupt in corruptions:
+                    data = copy.deepcopy(anchors); corrupt(data);path.write_text(json.dumps(data))
+                    with self.assertRaises(ValueError):
+                        generator.generate('0.3')
+
+class AimRadiusTest(unittest.TestCase):
+    def test_tuning_preserves_all_anchors_buttons_and_reference(self):
+        original = generator.generate('0.3')
+        tuned = generator.with_aim_radius(original, 80)
+        self.assertEqual(tuned, (ROOT / 'mlbb-gamesir-g8-v0.3-tuned.txt').read_text())
+        for before, after in zip(original.splitlines(), tuned.splitlines()):
+            a, b = before.split(), after.split()
+            if a[0] == 'STICK_AIM':
+                self.assertEqual(b[4], '80')
+                self.assertEqual(a[:4] + a[5:], b[:4] + b[5:])
+            else:
+                self.assertEqual(before, after)
+        self.assertEqual(original, generator.generate('0.3'))
+
+    def test_invalid_radius_rejected(self):
+        for radius in (0, -1, float('nan'), float('inf'), True, '80'):
+            with self.assertRaises(ValueError):
+                generator.with_aim_radius(generator.generate('0.3'), radius)
+
 if __name__ == '__main__':
     unittest.main()

@@ -2,7 +2,7 @@
 
 Scope: #29, #26 and #14. Work starts from origin/dev `3fc89c6`.
 No ADB commands, installation, service restart, profile changes or other device
-operations were performed in this implementation session. The current installed
+operations were performed in the original PR #30 implementation session. The current installed
 APK, preferred local GameSir profile and nine-profile backup baseline are not
 verified or changed by these repository tests.
 
@@ -114,3 +114,6 @@ suites, and Android unit tests/debug build, uploading test reports even when
 validation fails. It uses read-only repository permissions and no signing
 secrets, release publication or device access. CI success is independent
 automated evidence, not a substitute for the pending physical checkpoints.
+
+Post-merge read-only evidence and the reproduced editor anchor defect are
+recorded in [anchor follow-up](phase1-anchor-followup.md).
