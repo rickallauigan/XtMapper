@@ -75,7 +75,11 @@ object ProfileDetailsReader {
                     "${g.name} • ${if (online) "connected" else "disconnected"} • preferred for this app"
                 }
             }
-            SavedProfileDetails(id, profile.packageName, !profile.disabled, ProfileMappingSummary.from(profile, try { xtr.keymapper.editor.CapturedTargetStore(context).read() } catch (_: Exception) { emptyList() }), "${profile.xRes} × ${profile.yRes}", devices = associations)
+            val structured=xtr.keymapper.structured.StructuredProfiles.document(lines)
+            val summary=if(structured==null) ProfileMappingSummary.from(profile,try{xtr.keymapper.editor.CapturedTargetStore(context).read()}catch(_:Exception){emptyList()}) else ProfileMappingSummary(structured.bindings.mapIndexed {i,b->
+                MappingRow("structured:$i",b.displayInput(),"${b.name} • ${b.action}${if(b.enabled) "" else " • Disabled"}","Structured profile",b.description+"\n"+b.nativeLine)
+            })
+            SavedProfileDetails(id,profile.packageName,!profile.disabled,summary,"${profile.xRes} × ${profile.yRes}",devices=associations)
         } catch (e: IllegalArgumentException) {
             SavedProfileDetails(id, packageName, "ENABLED" in lines, ProfileMappingSummary(emptyList()), "Unknown", e.message ?: "Invalid saved profile")
         }

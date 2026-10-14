@@ -221,3 +221,7 @@ gameplay acceptance is separate from the physically validated KBM setup.
 Coordinate Capture and Phase 2 controller customization are documented in
 [the capture workflow](docs/coordinate-capture.md). Quick Buy remains unbound
 until measured; Phase 2 device acceptance is pending.
+
+Versioned JSON/YAML profile files, disabled mappings and the safe import workflow
+are documented in [structured profiles](docs/structured-profiles.md). Phase 3
+is repository-only; physical deployment and acceptance remain separate gates.
