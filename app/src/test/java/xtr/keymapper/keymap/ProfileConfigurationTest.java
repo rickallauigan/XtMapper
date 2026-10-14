@@ -72,10 +72,14 @@ public class ProfileConfigurationTest {
     @Test public void invalidLaterLineDoesNotReturnPartialProfile() {
         rejects(REPRESENTATIVE + "\nKEY_B broken 10 35", "Line 13");
     }
-    @Test public void usesExistingScaling() {
+    @Test public void scalesLegacyEffectiveAnchorAndExistingElements() {
         KeymapProfile profile = ProfileConfiguration.parse(REPRESENTATIVE);
         profile.scale(960, 540);
-        assertEquals(60.25f, profile.keys.get(0).x, 0f);
+        // Runtime injects x/y + offset: scale that complete target, not just top-left.
+        assertEquals(42.75f, profile.keys.get(0).x, 0f);
+        assertEquals(35f, profile.keys.get(0).offset, 0f);
+        assertEquals(77.75f, profile.keys.get(0).x + profile.keys.get(0).offset, 0f);
+        assertEquals(137.5f, profile.keys.get(0).y + profile.keys.get(0).offset, 0f);
         assertEquals(50f, profile.dpadArray[0].getX(), 0f);
         assertEquals(960, profile.xRes);
     }

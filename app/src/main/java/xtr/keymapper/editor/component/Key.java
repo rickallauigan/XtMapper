@@ -11,6 +11,8 @@ import xtr.keymapper.keymap.KeymapConfig;
 public class Key extends EditorUiComponent {
     private final MovableFloatingActionKey floatingKey;
     private int repeatIntervalMs;
+    private float anchorX, anchorY;
+    private boolean positioned;
 
     public Key(EditorUiComponentCallback callback, Context context, float x, float y) {
         super(callback, context, x, y);
@@ -24,7 +26,10 @@ public class Key extends EditorUiComponent {
 
     @Override
     public String getDataLine() {
-        return floatingKey.getData() + (repeatIntervalMs > 0 ? " " + repeatIntervalMs : "");
+        float x = positioned ? floatingKey.frameView.getX() + floatingKey.frameView.getPivotX() : anchorX;
+        float y = positioned ? floatingKey.frameView.getY() + floatingKey.frameView.getPivotY() : anchorY;
+        return xtr.keymapper.controller.ControllerBindings.editorCode(floatingKey.getCodeText())
+                + " " + x + " " + y + " 0" + (repeatIntervalMs > 0 ? " " + repeatIntervalMs : "");
     }
 
 
@@ -42,11 +47,20 @@ public class Key extends EditorUiComponent {
         }, getCallback().getKeysContainerView());
 
         floatingKey.setText(key.code.startsWith("KEY_") ? key.code.substring(4) : key.code);
-        floatingKey.frameView.animate()
-                .x(key.x)
-                .y(key.y)
-                .setDuration(1000)
-                .start();
+        // Profiles may contain a legacy top-left + offset binding. Show its actual
+        // injected center, and save canonical center coordinates independently of marker size.
+        anchorX = key.x + key.offset;
+        anchorY = key.y + key.offset;
+        floatingKey.frameView.addOnLayoutChangeListener(new View.OnLayoutChangeListener() {
+            @Override public void onLayoutChange(View view, int left, int top, int right, int bottom,
+                    int oldLeft, int oldTop, int oldRight, int oldBottom) {
+                if (right <= left || bottom <= top) return;
+                view.setX(anchorX - view.getPivotX());
+                view.setY(anchorY - view.getPivotY());
+                positioned = true;
+                view.removeOnLayoutChangeListener(this);
+            }
+        });
         floatingKey.setOnClickListener(this::onFloatingKeyClick);
 
         floatingKey.frameView.setScaleX(keymapConfig.floatingKeysSize);

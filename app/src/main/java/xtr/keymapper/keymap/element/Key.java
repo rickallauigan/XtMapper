@@ -15,8 +15,10 @@ public final class Key extends KeymapProfileElement {
 
     @Override
     public void scale(float scaleX, float scaleY) {
-        x *= scaleX;
-        y *= scaleY;
+        // Scale the effective touch anchor, including legacy marker-center offset.
+        // Keep the serialized offset for compatibility even under anisotropic scaling.
+        x = (x + offset) * scaleX - offset;
+        y = (y + offset) * scaleY - offset;
     }
 
     public Key(){
