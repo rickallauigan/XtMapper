@@ -12,6 +12,11 @@ updates:
     registries:
         - maven-google
 
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+
 registries:
   maven-google:
     type: maven-repository

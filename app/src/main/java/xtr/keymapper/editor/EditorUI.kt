@@ -333,7 +333,7 @@ class EditorUI(
             val windowInsetsController = overlayView.getWindowInsetsController()
             if (windowInsetsController != null) {
                 windowInsetsController.systemBarsBehavior = WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
-                windowInsetsController.hide(WindowInsetsCompat.Type.systemBars())
+                windowInsetsController.hide(android.view.WindowInsets.Type.systemBars())
             }
         }
     }

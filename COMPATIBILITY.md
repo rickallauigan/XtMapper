@@ -44,3 +44,5 @@ or latency improvements versus upstream are claimed.
 
 See [S10e validation](docs/S10E.md), [Mate 9 planning](docs/MATE9.md), and the
 [roadmap](docs/ROADMAP.md).
+
+Phase 3 CI/lint/supply-chain checks are repository-only evidence. No new device, gameplay, SDK 25–28 discovery, or structured-import compatibility is physically certified by them. See [engineering checks](docs/engineering-quality.md).

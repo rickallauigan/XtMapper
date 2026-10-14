@@ -50,16 +50,18 @@ public class KeymapProfiles {
     }
 
     public void renameProfile(String profileName, String newProfile) {
-        Set<String> stringSet = sharedPref.getStringSet(profileName, null);
-        deleteProfile(profileName);
-        sharedPref.edit()
-                .putStringSet(newProfile, stringSet)
-                .apply();
+        synchronized (xtr.keymapper.structured.StructuredProfiles.SAVE_LOCK) {
+        ProfileStorageTransactions.rename(sharedPref, profileName, newProfile);
+
+        }
     }
 
     public void setProfilePackageName(String profileName, String packageName) {
+        synchronized (xtr.keymapper.structured.StructuredProfiles.SAVE_LOCK) {
         Set<String> stringSet = sharedPref.getStringSet(profileName, null);
         saveProfile(profileName, new ArrayList<>(stringSet), packageName, stringSet.contains("ENABLED"), 0, 0);
+
+        }
     }
 
     public boolean isProfileEnabled(String profileName) {
@@ -72,6 +74,7 @@ public class KeymapProfiles {
     }
 
     public void setProfileEnabled(String profileName, boolean enabled) {
+        synchronized (xtr.keymapper.structured.StructuredProfiles.SAVE_LOCK) {
         Set<String> stringSet = sharedPref.getStringSet(profileName, null);
         String packageName = null;
         for (String line : stringSet) {
@@ -89,27 +92,33 @@ public class KeymapProfiles {
                 saveProfile(entry.getKey(), new ArrayList<>(lines), packageName, enabled, profile.xRes, profile.yRes);
             }
         }
+
+        }
     }
 
     public void saveProfile(String profileName, ArrayList<String> lines, String packageName, boolean enabled, int xRes, int yRes) {
-        lines.removeIf(line -> line.contains("APPLICATION"));
+        synchronized (xtr.keymapper.structured.StructuredProfiles.SAVE_LOCK) {
+        lines.removeIf(line -> line.startsWith("APPLICATION "));
         lines.add("APPLICATION " + packageName);
 
         if (xRes > 0 && yRes > 0) {
-            lines.removeIf(line -> line.contains("SCREENSIZE"));
+            lines.removeIf(line -> line.startsWith("SCREENSIZE "));
             lines.add("SCREENSIZE " + xRes + " " + yRes);
         }
 
-        lines.removeIf(line -> line.contains("ENABLED"));
+        lines.removeIf(line -> line.equals("ENABLED"));
         if (enabled) lines.add("ENABLED");
-        Set<String> stringSet = new HashSet<>(lines);
-        sharedPref.edit()
-                .putStringSet(profileName, stringSet)
-                .apply();
+        Set<String> stringSet = xtr.keymapper.structured.StructuredProfiles.reconcile(sharedPref.getStringSet(profileName, null), new HashSet<>(lines));
+        xtr.keymapper.structured.StructuredProfiles.writeSet(sharedPref, profileName, stringSet);
+
+        }
     }
 
     public void deleteProfile(String profileName){
+        synchronized (xtr.keymapper.structured.StructuredProfiles.SAVE_LOCK) {
         sharedPref.edit().remove(profileName).apply();
+
+        }
     }
 
     public KeymapProfile getProfile(String profileName, boolean loadMacros) {
@@ -120,6 +129,7 @@ public class KeymapProfiles {
     }
 
     public static KeymapProfile getProfile(Set<String> lines) {
+        var structured = lines == null ? null : xtr.keymapper.structured.StructuredProfiles.document(lines);
         KeymapProfile profile = new KeymapProfile();
         profile.disabled = true;
         if (lines != null) lines.forEach(line -> {
@@ -207,6 +217,12 @@ public class KeymapProfiles {
                 }
             }
         });
+        if (structured != null && (!structured.getProfile().getEnabled() || xtr.keymapper.structured.StructuredProfiles.pending(lines))) {
+            profile.keys.clear(); profile.aimKeys.clear(); profile.chords.clear(); profile.swipeKeys.clear();
+            java.util.Arrays.fill(profile.dpadArray, null); profile.macroIdMap.clear();
+            profile.camera = null; profile.leftClick = null; profile.rightClick = null;
+            profile.mouseWalk = null; profile.mouseAimConfig = null;
+        }
         return profile;
     }
 }

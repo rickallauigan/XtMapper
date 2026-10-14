@@ -219,3 +219,8 @@ remain pending. Source contract: docs/structured-profiles.md.
 ## Phase 3 branding preparation (2026-10-14)
 
 Recorded current display and technical identities, existing app_name resource architecture, adaptive/monochrome artwork specifications, GPL/upstream attribution, approval gates and display-only migration/rollback design. No permanent product name chosen; no icon, label, package, signing, IPC, preference, repository or device changes. Final name/artwork and deployment remain owner approval gates.
+
+
+## Phase 3 quality baseline (2026-10-14)
+
+Prepared blocking Android lint, runtime Maven inventory/OSV audit, basic redacted source-secret guards, artifact checksums, and manual-only release controls. Removed production signing secret use from debug CI without changing app identities. Fixed platform constant and API-level lint errors; documented conservative pre-29 hardware discovery and individually justified privileged manifest declarations. Existing warnings remain visible. Added contributor/security/release guidance and review checklist. No device access, deployment, release dispatch, or signing-identity change occurred. Privileged shell helper's legacy global changes remain an explicitly documented security limitation requiring a separate platform-reviewed fix.

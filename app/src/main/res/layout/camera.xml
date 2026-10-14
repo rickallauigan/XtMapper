@@ -25,7 +25,10 @@
             android:layout_width="40dp"
             android:layout_height="40dp"
             android:background="@drawable/baseline_360_24"
-            app:layout_constraintCircle="@id/background"
+            app:layout_constraintStart_toStartOf="@id/background"
+            app:layout_constraintEnd_toEndOf="@id/background"
+            app:layout_constraintTop_toTopOf="@id/background"
+            app:layout_constraintBottom_toBottomOf="@id/background"
             android:id="@+id/camera"
             />
 

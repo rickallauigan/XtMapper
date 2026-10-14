@@ -345,8 +345,12 @@ public class MainActivity extends AppCompatActivity {
                 .setView(field.getRoot())
                 .setPositiveButton(R.string.ok, (dialog, which) -> {
                     String renamed = field.editText.getText().toString();
-                    new xtr.keymapper.keymap.KeymapProfiles(context).renameProfile(profileName, renamed);
-                    if (onComplete != null) runOnUiThread(onComplete);
+                    try {
+                        new xtr.keymapper.keymap.KeymapProfiles(context).renameProfile(profileName, renamed);
+                        if (onComplete != null) runOnUiThread(onComplete);
+                    } catch (RuntimeException e) {
+                        Toast.makeText(context, e.getMessage(), Toast.LENGTH_LONG).show();
+                    }
                 })
                 .setNegativeButton(R.string.cancel, null)
                 .show();

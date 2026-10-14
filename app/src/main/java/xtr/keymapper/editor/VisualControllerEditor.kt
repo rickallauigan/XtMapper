@@ -142,6 +142,9 @@ fun VisualControllerEditor(session: VisualMappingSession, overlay: Boolean, read
                         Text(deviceDescription, style = MaterialTheme.typography.bodySmall)
                         if (!overlay) Text("Fullscreen fallback: open the game behind the editor using overlay permission for live HUD measurement. Do not place unseen game targets.", color = MaterialTheme.colorScheme.secondary)
                         Text("Profile plane ${profile.xRes} × ${profile.yRes}. Recalibrate if the HUD or orientation changes.", style = MaterialTheme.typography.bodySmall)
+                        xtr.keymapper.structured.StructuredProfiles.document(session.lines)?.bindings?.filterNot {it.enabled}?.takeIf {it.isNotEmpty()}?.let { disabled ->
+                            Text("Disabled mappings retained: " + disabled.joinToString {"${it.name} (${it.input})"} + ". Enable/edit metadata in JSON/YAML profile files.", style=MaterialTheme.typography.bodySmall)
+                        }
                         ControllerDiagram(session, selected, ::load)
                         TextButton(onClick = { chordEditor = true }) { Text("Edit controller chords") }
                         Text(ControllerPresentation.rearNotice, style = MaterialTheme.typography.bodySmall)

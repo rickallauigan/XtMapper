@@ -228,3 +228,6 @@ is repository-only; physical deployment and acceptance remain separate gates.
 
 
 Product identity: [rebranding preparation and approval gates](docs/branding-preparation.md). Current app name, icons, packages and upstream credits remain unchanged.
+
+
+Engineering: [Contributing](CONTRIBUTING.md), [Security policy](SECURITY.md), and [build/CI/release checks](docs/engineering-quality.md).
