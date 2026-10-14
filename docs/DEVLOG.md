@@ -171,3 +171,16 @@ a claimed diagnosis of MLBB native-input suppression or certified (+) positions.
 controller/mouse suites pass. Added no-op/drag/scale editor regressions and
 LT-displaced-stick/reconnect MotionEvent regression. See phase1-anchor-followup.md
 for pending physical acceptance, protected installed state and staging/rollback.
+
+## 2026-10-14 — Phase 1 isolated gameplay follow-up
+
+Recovered historical v0.3 (+) anchors from matching approved exports; preserved
+v0.1/v0.2 and recovered v0.3 references. A separate 80-pixel controller-aim
+profile prevents the user-reproduced RT-to-Ultimate unintended cast. Human
+confirmed LT + native movement + RB/RT/LB aim/cast in staging, both LT/skill
+press orders, directional A/Flicker and distinct rear upgrades. Raw captures
+proved both rear buttons initially emitted L3; explicitly authorized R4→R3
+programming restored separate upgrades. Original app APK/profile untouched.
+Added safe asynchronous cursor migration with two regression tests.
+167 Android tests, 9 Python tests, four fixtures and native suites PASS.
+See phase1-anchor-followup.md for authorization, evidence and causal limits.

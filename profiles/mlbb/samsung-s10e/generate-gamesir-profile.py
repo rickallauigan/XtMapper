@@ -9,7 +9,38 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent
 
+def validate_measurement(entry, width, height):
+    if not isinstance(entry, dict) or not isinstance(entry.get('measurement'), str) or not entry['measurement'].strip():
+        raise ValueError('Extra anchors require a physical measurement record')
+    if not all(type(entry.get(k)) in (int, float) and math.isfinite(entry[k]) for k in ('x', 'y')):
+        raise ValueError('Extra coordinates must be finite numbers')
+    if not (0 <= entry['x'] < width and 0 <= entry['y'] < height):
+        raise ValueError('Extra anchor is outside the calibrated display')
+
 def generate(version="0.2", rear_leveling=False):
+    if version == "0.3":
+        if rear_leveling:
+            raise ValueError('v0.3 already contains measured rear leveling')
+        recovered = json.loads((ROOT / 'mlbb-gamesir-g8-v0.3-anchors.json').read_text())
+        if recovered.get('viewport') != [2280, 1080] or recovered.get('origin') != [0, 0]:
+            raise ValueError('Recovered anchors require the calibrated global display plane')
+        actions = recovered.get('actions', {})
+        result = generate('0.2').splitlines()
+        base_viewport = next((line.split()[1:] for line in result if line.startswith('SCREENSIZE ')), None)
+        if base_viewport is None or list(map(float, base_viewport)) != recovered['viewport']:
+            raise ValueError('Recovered anchors do not match the base profile viewport')
+        centers = set()
+        for action, code in [('ultimate_level_up', 'BTN_SELECT'), ('skill1_level_up', 'BTN_THUMBR'), ('skill2_level_up', 'BTN_THUMBL')]:
+            entry = actions.get(action)
+            validate_measurement(entry, 2280, 1080)
+            center = (entry['x'], entry['y'])
+            if center in centers:
+                raise ValueError('Level-up action anchors must be distinct')
+            centers.add(center)
+            if any(code in line.split() for line in result):
+                raise ValueError('Recovered level-up binding conflicts with an existing utility')
+            result.append(f'{code} {entry["x"]} {entry["y"]} 0')
+        return '\n'.join(result) + '\n'
     if version not in {"0.1", "0.2"}:
         raise ValueError("Unsupported profile version")
     if rear_leveling and version != "0.2":
@@ -33,12 +64,7 @@ def generate(version="0.2", rear_leveling=False):
         extras = json.loads(extra_path.read_text())
         width, height = map(float, tags['SCREENSIZE'][1:])
         def measured(entry):
-            if not isinstance(entry.get('measurement'), str) or not entry['measurement'].strip():
-                raise ValueError('Extra anchors require a physical measurement record')
-            if not all(type(entry.get(k)) in (int, float) and math.isfinite(entry[k]) for k in ('x', 'y')):
-                raise ValueError('Extra coordinates must be finite numbers')
-            if not (0 <= entry['x'] < width and 0 <= entry['y'] < height):
-                raise ValueError('Extra anchor is outside the calibrated display')
+            validate_measurement(entry, width, height)
         codes = set()
         for binding in extras.get('bindings', []):
             measured(binding)
@@ -76,18 +102,36 @@ def generate(version="0.2", rear_leveling=False):
                 raise ValueError('SELECT leveling chord disagrees with its measured skill action')
     return '\n'.join(result) + '\n'
 
+def with_aim_radius(profile, radius):
+    """Tune controller drag range without changing measured touch anchors."""
+    if type(radius) not in (int, float) or not math.isfinite(radius) or radius <= 0:
+        raise ValueError('Aim radius must be a finite positive number')
+    result = []
+    for line in profile.splitlines():
+        fields = line.split()
+        if fields and fields[0] == 'STICK_AIM':
+            fields[4] = format(radius, 'g')
+            line = ' '.join(fields)
+        result.append(line)
+    return '\n'.join(result) + '\n'
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--check', action='store_true')
-    parser.add_argument('--version', choices=['0.1', '0.2'], default='0.2')
+    parser.add_argument('--version', choices=['0.1', '0.2', '0.3'], default='0.2')
     parser.add_argument('--rear-leveling', action='store_true', help='Use measured named actions for R4/R3 and L4/L3')
     parser.add_argument('--output', type=Path, help='Separate output required for rear-leveling; preserves rollback fixtures')
+    parser.add_argument('--aim-radius', type=float, help='Controller-only drag radius; requires separate output')
     args = parser.parse_args()
     if args.rear_leveling and (args.output is None or args.output.resolve() in {ROOT / 'mlbb-gamesir-g8-v0.1.txt', ROOT / 'mlbb-gamesir-g8-v0.2.txt'}):
         parser.error('--rear-leveling requires a separate --output, never a rollback fixture')
+    if args.aim_radius is not None and (args.output is None or args.output.resolve() in {ROOT / f'mlbb-gamesir-g8-v{v}.txt' for v in ('0.1', '0.2', '0.3')}):
+        parser.error('--aim-radius requires a separate --output, preserving reference fixtures')
     output = ROOT / f'mlbb-gamesir-g8-v{args.version}.txt'
     output = args.output or output
     expected = generate(args.version, rear_leveling=args.rear_leveling)
+    if args.aim_radius is not None:
+        expected = with_aim_radius(expected, args.aim_radius)
     if args.check:
         if output.read_text() != expected:
             raise SystemExit('Controller profile differs from the shared KBM anchors; regenerate it.')

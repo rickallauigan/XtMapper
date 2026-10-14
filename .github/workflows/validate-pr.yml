@@ -34,6 +34,8 @@ jobs:
           python3 -m unittest discover -s profiles/mlbb/samsung-s10e -p 'test_*.py'
           python3 profiles/mlbb/samsung-s10e/generate-gamesir-profile.py --version 0.1 --check
           python3 profiles/mlbb/samsung-s10e/generate-gamesir-profile.py --version 0.2 --check
+          python3 profiles/mlbb/samsung-s10e/generate-gamesir-profile.py --version 0.3 --check
+          python3 profiles/mlbb/samsung-s10e/generate-gamesir-profile.py --version 0.3 --aim-radius 80 --output profiles/mlbb/samsung-s10e/mlbb-gamesir-g8-v0.3-tuned.txt --check
 
       - name: Run native input regression suites
         run: |
