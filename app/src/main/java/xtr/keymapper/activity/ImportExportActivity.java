@@ -132,14 +132,14 @@ public class ImportExportActivity extends AppCompatActivity {
                 while ((line = reader.readLine()) != null) {
                     stringSet.add(line);
                 }
+                if (imported.containsKey(profileName)) throw new IllegalArgumentException("Duplicate ZIP profile name");
                 imported.put(profileName, xtr.keymapper.keymap.ProfileConfiguration.validate(String.join("\n", stringSet)));
                 zipInputStream.closeEntry();
             }
             zipInputStream.close();
             synchronized (xtr.keymapper.structured.StructuredProfiles.SAVE_LOCK) {
-                var edit = new KeymapProfiles(this).sharedPref.edit();
-                imported.forEach(edit::putStringSet);
-                edit.commit();
+                xtr.keymapper.keymap.ProfileStorageTransactions.importNew(
+                        new KeymapProfiles(this).sharedPref, imported);
             }
         } catch (RuntimeException e) {
             android.widget.Toast.makeText(this, e.getMessage(), android.widget.Toast.LENGTH_LONG).show();

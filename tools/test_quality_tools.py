@@ -6,6 +6,13 @@ def load(name):
     spec=importlib.util.spec_from_file_location(name,Path(__file__).with_name(name+'.py'))
     module=importlib.util.module_from_spec(spec);spec.loader.exec_module(module);return module
 class QualityTests(unittest.TestCase):
+    def test_merged_branding_document_remains_available(self):
+        root = Path(__file__).resolve().parent.parent
+        document = root / 'docs/branding-preparation.md'
+        self.assertTrue(document.is_file(), 'Merged branding preparation must not be deleted')
+        self.assertTrue(document.read_text().strip())
+        self.assertIn('docs/branding-preparation.md', (root / 'README.md').read_text())
+
     def test_secret_guard_redacts_and_finds_generated_sample(self):
         guard=load('check_secrets')
         token='AKIA'+'0'*16

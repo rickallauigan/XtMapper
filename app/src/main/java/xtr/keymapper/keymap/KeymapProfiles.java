@@ -51,11 +51,7 @@ public class KeymapProfiles {
 
     public void renameProfile(String profileName, String newProfile) {
         synchronized (xtr.keymapper.structured.StructuredProfiles.SAVE_LOCK) {
-        if (profileName.equals(newProfile)) return;
-        if (sharedPref.contains(newProfile)) throw new IllegalArgumentException("Profile name already exists");
-        Set<String> stringSet = sharedPref.getStringSet(profileName, null);
-        if (stringSet == null) throw new IllegalArgumentException("Profile no longer exists");
-        sharedPref.edit().remove(profileName).putStringSet(newProfile, stringSet).commit();
+        ProfileStorageTransactions.rename(sharedPref, profileName, newProfile);
 
         }
     }

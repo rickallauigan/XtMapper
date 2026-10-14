@@ -65,8 +65,8 @@ object StructuredProfiles {
             val prior=prefs.getStringSet(id,null)?.toSet()
             if(!prefs.edit().putStringSet(id,next.toSet()).commit()) {
                 val rollback=prefs.edit();if(prior==null)rollback.remove(id)else rollback.putStringSet(id,prior)
-                rollback.commit() // Restore memory too; SharedPreferences may update memory on failed disk commit.
-                error("Profile save failed; prior state restored in memory. Verify storage before retrying.")
+                if (!rollback.commit()) error("Profile save failed; rollback persistence also failed. Verify storage before retrying.")
+                error("Profile save failed; prior state restored.")
             }
         }
     }
