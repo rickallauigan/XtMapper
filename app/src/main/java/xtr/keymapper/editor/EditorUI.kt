@@ -72,6 +72,9 @@ class EditorUI(
     private var visualReady by androidx.compose.runtime.mutableStateOf(false)
     private var visualCloseRequested by androidx.compose.runtime.mutableStateOf(false)
     private var closed = false
+    private var captureSession: CoordinateCaptureSession? = null
+    private var captureGuard: CaptureInterruptionGuard? = null
+    private val draftEditor get() = startMode == VISUAL_EDITOR || startMode == COORDINATE_CAPTURE
 
     // The settings/catalog UI (hidden in SHOW_KEYMAP_ONLY mode)
     private val settingsOverlay: SettingsOverlay?
@@ -131,8 +134,8 @@ class EditorUI(
         settingsOverlay!!.onUnRegisterKeyEventListener()
         if (mService != null) {
             try {
-                mService!!.unregisterOnKeyEventListener(this)
-                if (startMode != VISUAL_EDITOR) {
+                if (startMode != COORDINATE_CAPTURE) mService!!.unregisterOnKeyEventListener(this)
+                if (!draftEditor) {
                     mService!!.resumeMouse()
                     mService!!.reloadKeymap()
                 } else if (KeymapConfig(context).disableAutoProfiling) {
@@ -147,10 +150,11 @@ class EditorUI(
     @Throws(RemoteException::class)
     fun registerOnKeyEventListener(service: IRemoteService?) {
         mService = service
-        mService!!.registerOnKeyEventListener(this)
+        if (startMode != COORDINATE_CAPTURE) mService!!.registerOnKeyEventListener(this)
         settingsOverlay!!.onRegisterKeyEventListener()
         mService!!.pauseMouse()
-        if (startMode == VISUAL_EDITOR) checkVisualPause(service!!, 0)
+        if (startMode == COORDINATE_CAPTURE) captureGuard?.connection(mService!!.isActive)
+        if (draftEditor) checkVisualPause(service!!, 0)
     }
 
     private fun checkVisualPause(service: IRemoteService, attempt: Int) {
@@ -194,11 +198,13 @@ class EditorUI(
             mainView.setFocusable(true)
         }
 
-        if (startMode == VISUAL_EDITOR) openVisualEditor() else loadKeymapAfterView()
+        if (startMode == COORDINATE_CAPTURE) openCaptureEditor()
+        else if (startMode == VISUAL_EDITOR) openVisualEditor() else loadKeymapAfterView()
     }
 
     fun requestClose() {
-        if (startMode == VISUAL_EDITOR && visualSession?.dirty == true) visualCloseRequested = true
+        captureSession?.stop()
+        if (startMode == COORDINATE_CAPTURE || startMode == VISUAL_EDITOR && visualSession?.dirty == true) visualCloseRequested = true
         else hideView()
     }
 
@@ -242,6 +248,40 @@ class EditorUI(
         }
     }
 
+    private fun openCaptureEditor() {
+        val p = try {
+            if (profileName == null) null else {
+                val saved = KeymapProfiles(context).sharedPref.getStringSet(profileName, null)
+                require(saved != null) { "Profile was deleted or renamed" }
+                ProfileConfiguration.parse(saved.sorted().joinToString("\n"))
+            }
+        } catch (e: Exception) {
+            Toast.makeText(context, e.message, Toast.LENGTH_LONG).show(); hideView(); return
+        }
+        val display = android.graphics.Point()
+        @Suppress("DEPRECATION")
+        context.getSystemService(WindowManager::class.java).defaultDisplay.getRealSize(display)
+        val session = try { CoordinateCaptureSession(p?.xRes?.toFloat() ?: display.x.toFloat(), p?.yRes?.toFloat() ?: display.y.toFloat()) }
+        catch (e: Exception) { Toast.makeText(context, "Profile needs a valid screen size", Toast.LENGTH_LONG).show(); hideView(); return }
+        captureSession = session
+        EditorSessionGuard.acquire(this)
+        savedStateRegistryController.performAttach(); savedStateRegistryController.performRestore(null)
+        lifecycleRegistry.currentState = Lifecycle.State.RESUMED
+        mainView!!.setViewTreeLifecycleOwner(this); mainView.setViewTreeSavedStateRegistryOwner(this)
+        mainView.removeAllViews()
+        val compose = ComposeView(context); visualComposeView = compose
+        mainView.addView(compose, ViewGroup.LayoutParams(ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT))
+        captureGuard = CaptureInterruptionGuard(context, mainView, mHandler, overlayOpen, { mService }, { session.capturing }, { hideView() })
+        compose.setContent {
+            CoordinateCaptureUi(session, profileName, p?.packageName, overlayOpen, visualReady, visualCloseRequested,
+                onKeepEditing = { visualCloseRequested = false }, onClose = { hideView() }, onOpenGame = {
+                    p?.packageName?.let { pkg -> context.packageManager.getLaunchIntentForPackage(pkg)?.let {
+                        context.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                    } }
+                })
+        }
+    }
+
     fun openSettings() {
         (context as MainActivity).addContentView(
             mainView,
@@ -278,7 +318,7 @@ class EditorUI(
             mParams.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS
         }
 
-        if (startMode == VISUAL_EDITOR) mParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+        if (draftEditor) mParams.softInputMode = WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
         if (alpha < 1 && alpha > 0) overlayView.setAlpha(alpha)
 
         mWindowManager.addView(overlayView, mParams)
@@ -303,7 +343,7 @@ class EditorUI(
      * @return true if we consume the event
      */
     fun onKey(v: View?, keyCode: Int, event: KeyEvent): Boolean {
-        if (startMode == VISUAL_EDITOR && keyCode == KeyEvent.KEYCODE_BACK) {
+        if (draftEditor && keyCode == KeyEvent.KEYCODE_BACK) {
             if (event.action == KeyEvent.ACTION_UP) requestClose()
             return true
         }
@@ -322,6 +362,7 @@ class EditorUI(
      * @param event A line of output from getevent -ql
      */
     override fun onKeyEvent(event: String) {
+        if (startMode == COORDINATE_CAPTURE || closed) return
         // line: /dev/input/event3 EV_KEY KEY_X DOWN
         val code = xtr.keymapper.controller.ControllerBindings.capture(event) ?: return
         val key = if (code.startsWith("KEY_")) code.substring(4) else code
@@ -432,15 +473,17 @@ class EditorUI(
     fun hideView() {
         if (closed) return
         closed = true
-        if (startMode == VISUAL_EDITOR) {
+        captureSession?.stop()
+        captureGuard?.dispose(); captureGuard = null
+        if (draftEditor) {
             visualComposeView?.disposeComposition()
-            lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
+            if (lifecycleRegistry.currentState != Lifecycle.State.INITIALIZED) lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         }
         if (startMode == START_EDITOR) saveKeymap()
         if (startMode != SHOW_KEYMAP_ONLY) {
             unregisterOnKeyEventListener()
-            if (startMode != VISUAL_EDITOR) settingsOverlay!!.onDestroyView()
-            if (startMode == VISUAL_EDITOR) EditorSessionGuard.release(this)
+            if (!draftEditor) settingsOverlay!!.onDestroyView()
+            if (draftEditor) EditorSessionGuard.release(this)
 
             removeView(mainView!!)
             if (editorCallback != null) editorCallback.onHideView()
@@ -449,7 +492,7 @@ class EditorUI(
             // Load keymap config after settingsOverlay wrote config
             val keymapConfig = KeymapConfig(context)
             // We stopped the service, so we must restart it
-            if (startMode != VISUAL_EDITOR) RemoteServiceHelper.runIfActive(context, Runnable {
+            if (!draftEditor) RemoteServiceHelper.runIfActive(context, Runnable {
                 if (keymapConfig.showControls) ShowKeymapService.start(context, profileName)
             })
         } else removeView(keysContainerView)
@@ -459,9 +502,11 @@ class EditorUI(
     }
 
     private fun removeView(view: ViewGroup) {
-        if (overlayOpen && view.isAttachedToWindow) context.getSystemService(
-            WindowManager::class.java
-        ).removeView(view)
+        if (overlayOpen && view.isAttachedToWindow) {
+            try { context.getSystemService(WindowManager::class.java).removeView(view) }
+            catch (_: IllegalArgumentException) { /* Window already removed during interruption. */ }
+            catch (_: SecurityException) { /* Overlay permission was revoked. */ }
+        }
         view.removeAllViews()
         view.invalidate()
     }
@@ -683,6 +728,7 @@ class EditorUI(
         /* Start modes */
         const val START_SETTINGS: Int = 0 // Shows full editor with catalog/menu
         const val START_EDITOR: Int = 1 // Shows editor without catalog (save/reset available)
+        const val COORDINATE_CAPTURE: Int = 4
         const val VISUAL_EDITOR: Int = 3 // Explicit draft save; exit always discards unapplied changes.
         const val SHOW_KEYMAP_ONLY: Int = 2 // Used to show an overlay with active keymapping
         fun resizeView(view: View, x: Int, y: Int) {

@@ -61,6 +61,27 @@ class VisualControllerUiTest {
         compose.onNodeWithText("Cancel").performClick()
         Assert.assertEquals(0,saves); Assert.assertEquals(0,closes)
     }
+    @Test fun savedTargetReplacementShowsOldNewAndCancelDoesNotMutateDraft() {
+        val context=org.robolectric.RuntimeEnvironment.getApplication()
+        val store=CapturedTargetStore(context)
+        store.save(emptyList(),listOf(CapturedTarget("q","Quick Buy","UI fixture",10f,20f,2280,1080,1,"G8","com.mobile.legends")))
+        val s=session();show(s)
+        compose.onNodeWithTag("control:DPAD_UP").performScrollTo().performClick()
+        compose.onNodeWithText("Saved target").performScrollTo().performClick()
+        compose.onNodeWithText("Quick Buy • 10.0, 20.0").performClick()
+        compose.onNodeWithText("Replace with Quick Buy?").assertExists()
+        compose.onNodeWithText("Cancel").performClick();Assert.assertFalse(s.dirty)
+        compose.onNodeWithText("Saved target").performScrollTo().performClick()
+        compose.onNodeWithText("Quick Buy • 10.0, 20.0").performClick()
+        compose.onNodeWithText("Replace in draft").performClick()
+        Assert.assertEquals(0,s.profile.keys.single{it.code=="DPAD_UP"}.repeatIntervalMs)
+        Assert.assertTrue(s.lines.contains("DPAD_UP 10.0 20.0 0"))
+    }
+    @Test fun legacyFixedOffsetNoOpApplyPreservesEffectiveAnchor() {
+        val s=VisualMappingSession("G8",setOf("SCREENSIZE 2280 1080","BTN_TR 100 200 94.5"))
+        show(s);selectRB();compose.onNodeWithText("Apply to draft").performScrollTo().performClick()
+        val key=s.profile.keys.single();Assert.assertEquals(194.5f,key.x+key.offset,0f);Assert.assertEquals(294.5f,key.y+key.offset,0f)
+    }
     @Test
     @Config(sdk = [35], qualifiers = "w760dp-h420dp-land")
     @org.robolectric.annotation.GraphicsMode(org.robolectric.annotation.GraphicsMode.Mode.NATIVE)

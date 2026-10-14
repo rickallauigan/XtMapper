@@ -24,6 +24,7 @@ import xtr.keymapper.server.RemoteServiceHelper;
 public class EditorActivity extends Activity {
     public static final String PROFILE_NAME = "profile";
     public static final String VISUAL = "visual_controller";
+    public static final String CAPTURE = "coordinate_capture";
     private EditorUI editor;
 
     @Override
@@ -33,7 +34,7 @@ public class EditorActivity extends Activity {
         WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
 
         String selectedProfile = getIntent().getStringExtra(PROFILE_NAME);
-        if (selectedProfile == null) {
+        if (selectedProfile == null && !getIntent().getBooleanExtra(CAPTURE, false)) {
             finish();
             return;
         }
@@ -52,14 +53,21 @@ public class EditorActivity extends Activity {
 
         setTheme(R.style.Theme_XtMapper);
 
-        editor = new EditorUI(this, this::editorCallback, selectedProfile, getIntent().getBooleanExtra(VISUAL, false) ? EditorUI.VISUAL_EDITOR : EditorUI.START_EDITOR);
+        editor = new EditorUI(this, this::editorCallback, selectedProfile, getIntent().getBooleanExtra(CAPTURE, false) ? EditorUI.COORDINATE_CAPTURE : getIntent().getBooleanExtra(VISUAL, false) ? EditorUI.VISUAL_EDITOR : EditorUI.START_EDITOR);
 
         KeymapConfig keymapConfig = new KeymapConfig(this);
-        if (Settings.canDrawOverlays(this)) {
-            editor.open(getIntent().getBooleanExtra(VISUAL, false) || keymapConfig.editorOverlay);
-        } else {
-            editor.open(false);
-            if (!getIntent().getBooleanExtra(VISUAL, false)) MainActivity.checkOverlayPermission(this);
+        try {
+            if (Settings.canDrawOverlays(this)) {
+                editor.open(getIntent().getBooleanExtra(CAPTURE, false) || getIntent().getBooleanExtra(VISUAL, false) || keymapConfig.editorOverlay);
+            } else {
+                editor.open(false);
+                if (!getIntent().getBooleanExtra(VISUAL, false)) MainActivity.checkOverlayPermission(this);
+            }
+        } catch (RuntimeException error) {
+            if (!getIntent().getBooleanExtra(CAPTURE, false)) throw error;
+            editor.hideView();
+            android.widget.Toast.makeText(this, "Capture could not open. No targets or profiles saved.", android.widget.Toast.LENGTH_LONG).show();
+            return;
         }
 
         RemoteServiceHelper.getInstance(this, this::onConnection);
@@ -81,7 +89,7 @@ public class EditorActivity extends Activity {
                 } catch (RemoteException e) {
                     Log.e("editorActivity", e.getMessage(), e);
                 }
-            else {
+            else if (!getIntent().getBooleanExtra(CAPTURE, false)) {
                 MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
 
                 builder.setMessage(R.string.dialog_alert_editor)

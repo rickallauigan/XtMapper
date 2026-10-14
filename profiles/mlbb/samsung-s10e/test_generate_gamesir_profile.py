@@ -171,5 +171,40 @@ class AimRadiusTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 generator.with_aim_radius(generator.generate('0.3'), radius)
 
+class Phase2Test(unittest.TestCase):
+    def test_pending_quick_buy_preserves_tuned_profile_and_standalone_select(self):
+        tuned = generator.with_aim_radius(generator.generate('0.3'), 80)
+        self.assertEqual(tuned, generator.generate_phase2())
+        self.assertEqual(tuned, (ROOT / 'mlbb-gamesir-g8-phase2.txt').read_text())
+        self.assertNotIn('DPAD_UP', tuned)
+        self.assertIn('BTN_SELECT 1860 536 0', tuned)
+
+    def test_explicit_select_variation_only_replaces_standalone_select(self):
+        base = generator.generate_phase2()
+        chords = generator.generate_phase2(select_chords=True)
+        self.assertEqual(chords, (ROOT / 'mlbb-gamesir-g8-phase2-select-chords.txt').read_text())
+        self.assertEqual(set(base.splitlines()) - {'BTN_SELECT 1860 536 0'},
+            {line for line in chords.splitlines() if not line.startswith('CHORD ')})
+        for expected in ('CHORD BTN_SELECT BTN_TR 1551 846.5 0',
+            'CHORD BTN_SELECT BTN_TR2 1660.5 646 0', 'CHORD BTN_SELECT BTN_TL 1860 536 0'):
+            self.assertIn(expected, chords)
+
+    def test_quick_buy_requires_record_and_adds_exactly_one_nonrepeating_binding(self):
+        # Synthetic coordinates are parser tests, never deployment fixtures.
+        measurement = {'name': 'Quick Buy', 'description': 'synthetic unit test only',
+            'input': 'DPAD_UP', 'action': 'fixed_touch', 'isEnabled': True,
+            'position': {'x': 100, 'y': 200}, 'width': 2280, 'height': 1080,
+            'capturedAt': 12345, 'gamePackage': 'com.mobile.legends'}
+        baseline = generator.generate_phase2()
+        self.assertEqual(baseline + 'DPAD_UP 100 200 0\n', generator.generate_phase2(measurement))
+        import copy
+        for mutate in (lambda x: x.update(input='DPAD_RIGHT'), lambda x: x.update(isEnabled='true'),
+            lambda x: x.update(width=1080), lambda x: x.update(capturedAt=0),
+            lambda x: x.update(description=''), lambda x: x.update(repeat_ms=150),
+            lambda x: x['position'].update(x=float('nan')), lambda x: x.update(gamePackage='other.game')):
+            bad = copy.deepcopy(measurement); mutate(bad)
+            with self.assertRaises(ValueError):
+                generator.generate_phase2(bad)
+
 if __name__ == '__main__':
     unittest.main()

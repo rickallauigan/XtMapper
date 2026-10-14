@@ -217,3 +217,7 @@ Do not publish unofficial APKs to the play store. It hurts open source projects 
 GameSir G8 implementation and the shared-anchor controller profile are described
 in [the S10e G8 guide](profiles/mlbb/samsung-s10e/GAMESIR-G8.md). Controller
 gameplay acceptance is separate from the physically validated KBM setup.
+
+Coordinate Capture and Phase 2 controller customization are documented in
+[the capture workflow](docs/coordinate-capture.md). Quick Buy remains unbound
+until measured; Phase 2 device acceptance is pending.

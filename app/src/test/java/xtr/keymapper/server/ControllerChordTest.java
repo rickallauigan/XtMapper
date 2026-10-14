@@ -68,6 +68,24 @@ public class ControllerChordTest {
             CHORDS+"CAMERA 1 2 1 1 1 BTN_SELECT"))
             assertThrows(invalid,IllegalArgumentException.class,()->ProfileConfiguration.parse(invalid));
     }
+    @Test public void legacyChordOffsetScalingAndMarkerSavePreserveEffectiveAnchor() {
+        var profile=ProfileConfiguration.parse("SCREENSIZE 2280 1080\nCHORD BTN_SELECT BTN_TR 100 200 94.5");
+        profile.scale(1140,810);var chord=profile.chords.get(0);
+        assertEquals(97.25f,chord.x+chord.offset,0);assertEquals(220.875f,chord.y+chord.offset,0);
+        var context=new android.view.ContextThemeWrapper(org.robolectric.RuntimeEnvironment.getApplication(),xtr.keymapper.R.style.Theme_XtMapper);
+        var container=new android.widget.FrameLayout(context);
+        var callback=(xtr.keymapper.editor.EditorUiComponentCallback)Proxy.newProxyInstance(getClass().getClassLoader(),new Class[]{xtr.keymapper.editor.EditorUiComponentCallback.class},
+            (p,m,a)->m.getName().equals("getKeysContainerView")?container:null);
+        var marker=new xtr.keymapper.editor.component.ControllerChord(callback,context,chord);
+        var before=ProfileConfiguration.parse(marker.getDataLine()).chords.get(0);
+        assertEquals(97.25f,before.x,0);assertEquals(220.875f,before.y,0);assertEquals(0,before.offset,0);
+        var view=container.getChildAt(0);view.layout(0,0,189,160);
+        var after=ProfileConfiguration.parse(marker.getDataLine()).chords.get(0);
+        assertEquals(before.x,after.x,0);assertEquals(before.y,after.y,0);
+        view.setX(view.getX()+10);view.setY(view.getY()-1);
+        var dragged=ProfileConfiguration.parse(marker.getDataLine()).chords.get(0);
+        assertEquals(107.25f,dragged.x,0);assertEquals(219.875f,dragged.y,0);
+    }
     private static final class Rig {
         final List<Touch> touches=new ArrayList<>();
         final Map<String,long[]> nodes=new HashMap<>();
@@ -129,6 +147,23 @@ public class ControllerChordTest {
         rig.key("BTN_DPAD_LEFT","DOWN");rig.key("BTN_DPAD_LEFT","UP");
         assertEquals(6,rig.touches.size());rig.close();
         assertEquals("DPAD_LEFT",ControllerBindings.capture("/dev/input/event7: EV_KEY BTN_DPAD_LEFT DOWN"));
+    }
+    @Test public void quickBuyCanonicalHatIsOneNonrepeatingTouchAndPreservesOtherDirections() {
+        var rig=new Rig("DPAD_UP 100 200 0\nDPAD_DOWN 300 400 0\nKEY_UP 500 600 0");rig.connect();
+        rig.monitor.event("pad","EV_ABS ABS_HAT0Y ffffffff");
+        rig.monitor.event("pad","EV_ABS ABS_HAT0Y ffffffff");
+        rig.monitor.event("pad","EV_KEY BTN_DPAD_UP DOWN"); // Same canonical state, no duplicate.
+        Shadows.shadowOf(Looper.getMainLooper()).idleFor(Duration.ofMillis(1000));
+        assertEquals(1,rig.touches.size()); assertEquals(100f,rig.touches.get(0).x,0);
+        rig.monitor.event("pad","EV_ABS ABS_HAT0Y 00000001");
+        assertEquals(List.of(1,0,1),rig.touches.stream().map(Touch::action).toList());
+        rig.monitor.event("pad","EV_ABS ABS_HAT0Y 00000000");
+        assertEquals(300f,rig.touches.get(2).x,0);
+        rig.key("BTN_DPAD_UP","DOWN");rig.key("BTN_DPAD_UP","UP");
+        assertEquals(List.of(1,0,1,0,1,0),rig.touches.stream().map(Touch::action).toList());
+        rig.close();assertEquals(6,rig.touches.size());
+        assertEquals("DPAD_UP",ControllerBindings.capture("/dev/input/test: EV_ABS ABS_HAT0Y ffffffff"));
+        assertEquals("KEY_UP",ControllerBindings.capture("/dev/input/test: EV_KEY KEY_UP DOWN"));
     }
     @Test public void v02AttackSpellAndSkillsKeepIndependentPointersAndDigitalOnlyActivation() {
         var rig=new Rig("BTN_TL2 1981.08 946.58 0 150\nSTICK_AIM BTN_GAMEPAD 1477.88 982.97 180 1 1 .15 0\n"

@@ -184,3 +184,22 @@ programming restored separate upgrades. Original app APK/profile untouched.
 Added safe asynchronous cursor migration with two regression tests.
 167 Android tests, 9 Python tests, four fixtures and native suites PASS.
 See phase1-anchor-followup.md for authorization, evidence and causal limits.
+
+## 2026-10-14 — Phase 2 coordinate capture and controller candidates
+
+Continued merged Phase 1 dev `1aa2f00` on a new Phase 2 branch. Reused the visual
+editor plane/pause lease and chord runtime. Added explicit coordinate capture,
+visible crosshair/optional bounded trace, precision nudges, named target storage,
+clipboard snippets and confirmed saved-target binding. Added visual chord editing
+and independently justified legacy chord effective-anchor scaling/marker fixes.
+Separate Phase 2 candidates preserve tuned v0.3 or explicitly opt into SELECT
+chords. D-pad Up means Quick Buy, but no unmeasured target was added. Read-only
+S10e checks verified the existing debug mapper active; no APK installation,
+service/profile/device-association or firmware change was performed. Phase 2
+physical acceptance remains pending. See coordinate-capture.md.
+
+Phase 2 validation: 187 Android tests (zero failures/errors/skips), 12 Python
+tests, six profile/reference generator checks, native controller/mouse suites,
+`git diff --check`, and debug assembly PASS. APK SHA-256:
+`298e1025fecb9a6447dff16973845863ce983e732df416e9dfbb9b1850eb17c5`.
+Landscape capture UI was rendered/inspected locally; device acceptance pending.

@@ -50,6 +50,29 @@ class VisualMappingSession(val profileId: String, saved: Set<String>) {
         ProfileConfiguration.validate(next.sorted().joinToString("\n"))
         if (next != lines) { history.addLast(lines); lines = next }
     }
+    fun applyTarget(code: String, target: CapturedTarget, confirm: Boolean = false) {
+        require(confirm) { "Confirm the old/new binding before applying a saved target" }
+        replace(code, targetReplacement(code, target), true)
+    }
+    fun targetReplacement(code: String, target: CapturedTarget): String {
+        val (x, y) = target.pointFor(profile.xRes, profile.yRes, profile.packageName)
+        require(code != RIGHT_STICK && ControllerBindings.isController(code))
+        val old = bindings(code).singleOrNull()?.split(Regex("\\s+"))
+        // A skill target changes its center, retaining the accepted analog tuning.
+        if (old?.firstOrNull() == "STICK_AIM") return "STICK_AIM $code $x $y " + old.drop(4).joinToString(" ")
+        // Fixed-touch target selection is explicitly nonrepeating, with no legacy marker offset.
+        return "$code $x $y 0"
+    }
+    fun chord(modifier: String, trigger: String, x: Float?, y: Float?) {
+        val m = ControllerBindings.canonical(modifier); val t = ControllerBindings.canonical(trigger)
+        val old = lines.filter { val d=it.split(Regex("\\s+")); d.size==6 && d[0]=="CHORD" && ControllerBindings.canonical(d[1])==m && ControllerBindings.canonical(d[2])==t }
+        val replacement = if (x == null && y == null) emptyList() else {
+            require(x != null && y != null); listOf("CHORD $m $t $x $y 0")
+        }
+        val next=lines-old.toSet()+replacement
+        ProfileConfiguration.validate(next.sorted().joinToString("\n"))
+        if(next!=lines) {history.addLast(lines); lines=next}
+    }
     fun undo() { if (history.isNotEmpty()) lines = history.removeLast() }
     fun reset() { if (dirty) { history.addLast(lines); lines = original } }
     fun resetBinding(code: String) {

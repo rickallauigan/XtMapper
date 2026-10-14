@@ -115,6 +115,31 @@ def with_aim_radius(profile, radius):
         result.append(line)
     return '\n'.join(result) + '\n'
 
+def generate_phase2(quick_buy=None, select_chords=False):
+    """Separate opt-in candidate; rollback references and tuned v0.3 stay untouched."""
+    result = with_aim_radius(generate('0.3'), 80).splitlines()
+    if select_chords:
+        recovered = json.loads((ROOT / 'mlbb-gamesir-g8-v0.3-anchors.json').read_text())
+        result = [line for line in result if not line.startswith('BTN_SELECT ')]
+        for action, trigger in [('skill1_level_up', 'BTN_TR'), ('skill2_level_up', 'BTN_TR2'), ('ultimate_level_up', 'BTN_TL')]:
+            e = recovered['actions'][action]
+            result.append(f'CHORD BTN_SELECT {trigger} {e["x"]} {e["y"]} 0')
+    if quick_buy is not None:
+        if not isinstance(quick_buy, dict) or quick_buy.get('input') != 'DPAD_UP' or quick_buy.get('action') != 'fixed_touch' or quick_buy.get('isEnabled') is not True:
+            raise ValueError('Quick Buy requires an enabled DPAD_UP fixed_touch measurement record')
+        if quick_buy.get('width') != 2280 or quick_buy.get('height') != 1080 or quick_buy.get('gamePackage') != 'com.mobile.legends':
+            raise ValueError('Quick Buy measurement must match the S10e MLBB global plane')
+        if type(quick_buy.get('capturedAt')) is not int or quick_buy['capturedAt'] <= 0 or not isinstance(quick_buy.get('name'), str) or not quick_buy['name'].strip():
+            raise ValueError('Quick Buy needs its capture timestamp and target name')
+        position = quick_buy.get('position')
+        if not isinstance(position, dict):
+            raise ValueError('Quick Buy needs nested position.x/y')
+        validate_measurement(dict(position, measurement=quick_buy.get('description')), 2280, 1080)
+        if 'repeat_ms' in quick_buy or any('DPAD_UP' in line.split() for line in result):
+            raise ValueError('Quick Buy must not repeat or replace an existing D-pad binding silently')
+        result.append(f'DPAD_UP {position["x"]} {position["y"]} 0')
+    return '\n'.join(result) + '\n'
+
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--check', action='store_true')
@@ -122,14 +147,21 @@ if __name__ == '__main__':
     parser.add_argument('--rear-leveling', action='store_true', help='Use measured named actions for R4/R3 and L4/L3')
     parser.add_argument('--output', type=Path, help='Separate output required for rear-leveling; preserves rollback fixtures')
     parser.add_argument('--aim-radius', type=float, help='Controller-only drag radius; requires separate output')
+    parser.add_argument('--phase2', action='store_true', help='Generate a separate tuned Phase 2 candidate')
+    parser.add_argument('--select-chords', action='store_true', help='Explicit opt-in: SELECT modifier replaces standalone Ultimate (+)')
+    parser.add_argument('--quick-buy-target', type=Path, help='Explicit measured target record, not a structured profile import')
     args = parser.parse_args()
+    if (args.select_chords or args.quick_buy_target) and not args.phase2:
+        parser.error('Phase 2 options require --phase2')
+    if args.phase2 and (args.rear_leveling or args.aim_radius is not None or args.output is None or args.output.resolve() in {ROOT / f'mlbb-gamesir-g8-v{v}.txt' for v in ('0.1', '0.2', '0.3', '0.3-tuned')}):
+        parser.error('--phase2 requires separate --output and cannot rewrite reference profiles')
     if args.rear_leveling and (args.output is None or args.output.resolve() in {ROOT / 'mlbb-gamesir-g8-v0.1.txt', ROOT / 'mlbb-gamesir-g8-v0.2.txt'}):
         parser.error('--rear-leveling requires a separate --output, never a rollback fixture')
     if args.aim_radius is not None and (args.output is None or args.output.resolve() in {ROOT / f'mlbb-gamesir-g8-v{v}.txt' for v in ('0.1', '0.2', '0.3')}):
         parser.error('--aim-radius requires a separate --output, preserving reference fixtures')
     output = ROOT / f'mlbb-gamesir-g8-v{args.version}.txt'
     output = args.output or output
-    expected = generate(args.version, rear_leveling=args.rear_leveling)
+    expected = generate_phase2(json.loads(args.quick_buy_target.read_text()) if args.quick_buy_target else None, args.select_chords) if args.phase2 else generate(args.version, rear_leveling=args.rear_leveling)
     if args.aim_radius is not None:
         expected = with_aim_radius(expected, args.aim_radius)
     if args.check:
