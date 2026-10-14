@@ -203,3 +203,7 @@ tests, six profile/reference generator checks, native controller/mouse suites,
 `git diff --check`, and debug assembly PASS. APK SHA-256:
 `298e1025fecb9a6447dff16973845863ce983e732df416e9dfbb9b1850eb17c5`.
 Landscape capture UI was rendered/inspected locally; device acceptance pending.
+
+## Phase 3 quality baseline (2026-10-14)
+
+Prepared blocking Android lint, runtime Maven inventory/OSV audit, basic redacted source-secret guards, artifact checksums, and manual-only release controls. Removed production signing secret use from debug CI without changing app identities. Fixed platform constant and API-level lint errors; documented conservative pre-29 hardware discovery and individually justified privileged manifest declarations. Existing warnings remain visible. Added contributor/security/release guidance and review checklist. No device access, deployment, release dispatch, or signing-identity change occurred. Privileged shell helper's legacy global changes remain an explicitly documented security limitation requiring a separate platform-reviewed fix.

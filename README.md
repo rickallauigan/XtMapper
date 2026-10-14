@@ -221,3 +221,5 @@ gameplay acceptance is separate from the physically validated KBM setup.
 Coordinate Capture and Phase 2 controller customization are documented in
 [the capture workflow](docs/coordinate-capture.md). Quick Buy remains unbound
 until measured; Phase 2 device acceptance is pending.
+
+Engineering: [Contributing](CONTRIBUTING.md), [Security policy](SECURITY.md), and [build/CI/release checks](docs/engineering-quality.md).

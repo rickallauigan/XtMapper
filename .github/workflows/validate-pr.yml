@@ -44,8 +44,16 @@ jobs:
           bash app/src/test/native/run-controller-probe-tests.sh
           bash app/src/test/native/run-mouse-reader-tests.sh
 
-      - name: Run Android tests and build debug APK
-        run: bash ./gradlew :app:testDebugUnitTest :app:assembleDebug
+      - name: Run Android tests, lint, inventory and build debug APK
+        run: bash ./gradlew :app:testDebugUnitTest :app:lintDebug :app:dependencyInventory :app:assembleDebug
+
+      - name: Check source secrets and advisory coverage
+        run: |
+          python3 -m unittest discover -s tools -p 'test_*.py'
+          python3 tools/check_secrets.py
+          python3 tools/audit_dependencies.py app/build/reports/dependencies/inventory.json app/build/reports/dependencies/advisories.json
+          sha256sum app/build/outputs/apk/debug/*.apk > app/build/reports/dependencies/SHA256SUMS
+
 
       - name: Preserve test reports
         if: always()
@@ -55,4 +63,6 @@ jobs:
           path: |
             app/build/test-results/testDebugUnitTest/
             app/build/reports/tests/testDebugUnitTest/
+            app/build/reports/lint-results-debug.*
+            app/build/reports/dependencies/
           if-no-files-found: ignore

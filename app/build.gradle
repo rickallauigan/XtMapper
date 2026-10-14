@@ -11,7 +11,7 @@ def keystorePropertiesFile = rootProject.file("keystore.properties")
 def keystoreProperties = new Properties()
 
 // Load your keystore.properties file into the keystoreProperties object.
-keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
+if (keystorePropertiesFile.exists()) keystoreProperties.load(new FileInputStream(keystorePropertiesFile))
 
 android {
     namespace 'xtr.keymapper'
@@ -35,7 +35,7 @@ android {
         release {
             keyAlias keystoreProperties['keyAlias']
             keyPassword keystoreProperties['keyPassword']
-            storeFile file(keystoreProperties['storeFile'])
+            storeFile keystoreProperties['storeFile'] ? file(keystoreProperties['storeFile']) : null
             storePassword keystoreProperties['storePassword']
         }
     }
@@ -125,4 +125,39 @@ dependencies {
 
     compileOnly project(path: ':app:hidden-api')
 
+}
+
+// Development inventory: resolved runtime components only, no signing configuration output.
+tasks.register('dependencyInventory') {
+    doLast {
+        def components = configurations.debugRuntimeClasspath.resolvedConfiguration.resolvedArtifacts.collect { a ->
+            def id = a.moduleVersion.id
+            [group:id.group, name:id.name, version:id.version]
+        }.unique().sort { a,b -> "${a.group}:${a.name}:${a.version}" <=> "${b.group}:${b.name}:${b.version}" }
+        def root = new File(gradle.gradleUserHomeDir, 'caches/modules-2/files-2.1')
+        def bomComponents = components.collect { c ->
+            def poms = fileTree(new File(root,"${c.group}/${c.name}/${c.version}")).matching { include '**/*.pom' }.files
+            def licenses = []
+            poms.each { pom ->
+                def factory = javax.xml.parsers.DocumentBuilderFactory.newInstance()
+                factory.setFeature('http://apache.org/xml/features/disallow-doctype-decl',true)
+                factory.setFeature('http://xml.org/sax/features/external-general-entities',false)
+                factory.setFeature('http://xml.org/sax/features/external-parameter-entities',false)
+                def xml = factory.newDocumentBuilder().parse(pom)
+                def nodes = xml.getElementsByTagName('license')
+                for(int i=0;i<nodes.length;i++) {
+                    def names=nodes.item(i).getElementsByTagName('name')
+                    if(names.length>0) licenses.add([license:[name:names.item(0).textContent.take(200)]])
+                }
+            }
+            [type:'library', group:c.group, name:c.name, version:c.version,
+             purl:"pkg:maven/${c.group}/${c.name}@${c.version}", licenses:licenses.unique()]
+        }
+        def destination = layout.buildDirectory.dir('reports/dependencies').get().asFile
+        destination.mkdirs()
+        new File(destination,'inventory.json').text=groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(components))
+        def bom=[bomFormat:'CycloneDX', specVersion:'1.6', version:1, components:bomComponents]
+        new File(destination,'sbom.json').text=groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(bom))
+        new File(destination,'licenses.json').text=groovy.json.JsonOutput.prettyPrint(groovy.json.JsonOutput.toJson(bomComponents.collect { [module:it.purl,licenses:it.licenses,status:it.licenses ? 'RECORDED' : 'UNRESOLVED'] }))
+    }
 }
