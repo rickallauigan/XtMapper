@@ -203,3 +203,7 @@ tests, six profile/reference generator checks, native controller/mouse suites,
 `git diff --check`, and debug assembly PASS. APK SHA-256:
 `298e1025fecb9a6447dff16973845863ce983e732df416e9dfbb9b1850eb17c5`.
 Landscape capture UI was rendered/inspected locally; device acceptance pending.
+
+## Phase 3 branding preparation (2026-10-14)
+
+Recorded current display and technical identities, existing app_name resource architecture, adaptive/monochrome artwork specifications, GPL/upstream attribution, approval gates and display-only migration/rollback design. No permanent product name chosen; no icon, label, package, signing, IPC, preference, repository or device changes. Final name/artwork and deployment remain owner approval gates.

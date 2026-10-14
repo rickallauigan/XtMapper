@@ -221,3 +221,5 @@ gameplay acceptance is separate from the physically validated KBM setup.
 Coordinate Capture and Phase 2 controller customization are documented in
 [the capture workflow](docs/coordinate-capture.md). Quick Buy remains unbound
 until measured; Phase 2 device acceptance is pending.
+
+Product identity: [rebranding preparation and approval gates](docs/branding-preparation.md). Current app name, icons, packages and upstream credits remain unchanged.
