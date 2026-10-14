@@ -180,3 +180,10 @@ values; installing/applying fixes there remains a separate authorization step.
 No original APK was replaced, no original export/backup deleted. Temporary
 phone import/diagnostic files were removed. R4's expressly authorized hardware
 assignment is the only intentional change retained in the controller.
+
+After restoration, the user reported the original profile again cast skills from
+rear buttons. The user then explicitly authorized leaving the tested staging
+setup active. Only the original mapper was stopped; staging's final tested APK,
+corrected anchors and 80-pixel radius are now active. Original app data remains
+preserved. Rollback: stop staging, then start the original s10etest mapper via
+its normal UI; its old profile behavior will return. Never run both mappers.
