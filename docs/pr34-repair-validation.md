@@ -45,3 +45,21 @@ validated. Existing privileged-helper global-setting/SELinux concerns remain
 separate security work. No device access, deployment, release, signing/package
 identity change or automatic merge is authorized by these results. Exact-head
 GitHub CI must also pass before this correction is considered review-ready.
+
+## Final ZIP security follow-up
+
+The bounded importer described in [ZIP import security](zip-import-security.md)
+adds archive/entry/decompressed/line limits, central-directory and CRC checks,
+strict UTF-8, early name validation and recoverable Activity errors.
+
+Final local validation: **214 Android tests passed**, zero failures/errors/skips,
+including **13 ZIP security regressions** and all **five storage transaction
+tests**. Cross-buffer CRLF and temporary-file deletion failure are covered.
+Lint: **0 errors, 60 warnings**. All 12 profile and four quality Python tests,
+both native suites, all six generators, schema/secret/diff checks passed.
+OSV queried 104 Maven components without advisory records; the unresolved
+listenablefuture:1.0 license declaration remains.
+
+Final local debug APK SHA-256: `6ff24a715bee67d6369af51cc3ab4239ae5493d24cc0baedb8263e59d836f62d`.
+No physical/device acceptance is claimed. The first 201-test record above
+describes the earlier transaction repair; this section records the ZIP follow-up.

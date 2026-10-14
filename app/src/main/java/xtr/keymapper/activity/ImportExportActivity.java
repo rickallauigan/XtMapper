@@ -14,17 +14,14 @@ import androidx.appcompat.app.AppCompatActivity;
 import androidx.appcompat.content.res.AppCompatResources;
 import androidx.recyclerview.widget.RecyclerView;
 
-import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.zip.ZipEntry;
-import java.util.zip.ZipInputStream;
 import java.util.zip.ZipOutputStream;
 
 import xtr.keymapper.R;
@@ -120,31 +117,11 @@ public class ImportExportActivity extends AppCompatActivity {
     private void importProfiles(Uri dataUri) {
         try (InputStream inputStream =
                      getContentResolver().openInputStream(dataUri)) {
-            ZipInputStream zipInputStream = new ZipInputStream(inputStream);
-            ZipEntry zipEntry;
-            java.util.Map<String, Set<String>> imported = new java.util.LinkedHashMap<>();
-            while ((zipEntry = zipInputStream.getNextEntry()) != null) {
-                String profileName = zipEntry.getName();
-                Set<String> stringSet = new HashSet<>();
-                BufferedReader reader = new BufferedReader(
-                        new InputStreamReader(zipInputStream));
-                String line;
-                while ((line = reader.readLine()) != null) {
-                    stringSet.add(line);
-                }
-                if (imported.containsKey(profileName)) throw new IllegalArgumentException("Duplicate ZIP profile name");
-                imported.put(profileName, xtr.keymapper.keymap.ProfileConfiguration.validate(String.join("\n", stringSet)));
-                zipInputStream.closeEntry();
-            }
-            zipInputStream.close();
-            synchronized (xtr.keymapper.structured.StructuredProfiles.SAVE_LOCK) {
-                xtr.keymapper.keymap.ProfileStorageTransactions.importNew(
-                        new KeymapProfiles(this).sharedPref, imported);
-            }
-        } catch (RuntimeException e) {
-            android.widget.Toast.makeText(this, e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
-        } catch (IOException e) {
-            throw new RuntimeException(e);
+            xtr.keymapper.keymap.ProfileZipImporter.importInto(inputStream, getCacheDir(),
+                    new KeymapProfiles(this).sharedPref);
+        } catch (IOException | RuntimeException e) {
+            android.widget.Toast.makeText(this, "Import failed: " + e.getMessage(),
+                    android.widget.Toast.LENGTH_LONG).show();
         }
         // Refresh RecyclerView
         binding.profiles.setAdapter(new ProfilesViewAdapter(this, false));

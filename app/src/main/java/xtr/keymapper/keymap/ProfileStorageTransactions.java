@@ -16,7 +16,7 @@ public final class ProfileStorageTransactions {
         return value == null ? null : Collections.unmodifiableSet(new HashSet<>(value));
     }
 
-    private static void validName(String name) {
+    static void validName(String name) {
         if (name == null || name.trim().isEmpty() || name.length() > 80
                 || name.equals(".") || name.equals("..")
                 || name.chars().anyMatch(c -> Character.isISOControl(c) || c == '/' || c == '\\'))
