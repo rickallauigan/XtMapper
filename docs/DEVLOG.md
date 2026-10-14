@@ -204,6 +204,23 @@ tests, six profile/reference generator checks, native controller/mouse suites,
 `298e1025fecb9a6447dff16973845863ce983e732df416e9dfbb9b1850eb17c5`.
 Landscape capture UI was rendered/inspected locally; device acceptance pending.
 
+## 2026-10-14 — Phase 3 structured profile boundary (#24)
+
+Added versioned JSON/YAML codecs translating all native mapping families, strict
+schema/field-path validation, safe YAML scanning, disabled metadata retention,
+SAF file preview, explicit replace/duplicate/cancel and an import activation gate.
+Metadata and native projection share one atomic profile record; editor writers
+share an optimistic-save lock and restore prior memory on failed commit. Existing
+text/ZIP, phase references, package/signing/IPC identifiers remain unchanged.
+No ADB or device access/deployment occurred. Hardware and file-picker acceptance
+remain pending. Source contract: docs/structured-profiles.md.
+
+
+## Phase 3 branding preparation (2026-10-14)
+
+Recorded current display and technical identities, existing app_name resource architecture, adaptive/monochrome artwork specifications, GPL/upstream attribution, approval gates and display-only migration/rollback design. No permanent product name chosen; no icon, label, package, signing, IPC, preference, repository or device changes. Final name/artwork and deployment remain owner approval gates.
+
+
 ## Phase 3 quality baseline (2026-10-14)
 
 Prepared blocking Android lint, runtime Maven inventory/OSV audit, basic redacted source-secret guards, artifact checksums, and manual-only release controls. Removed production signing secret use from debug CI without changing app identities. Fixed platform constant and API-level lint errors; documented conservative pre-29 hardware discovery and individually justified privileged manifest declarations. Existing warnings remain visible. Added contributor/security/release guidance and review checklist. No device access, deployment, release dispatch, or signing-identity change occurred. Privileged shell helper's legacy global changes remain an explicitly documented security limitation requiring a separate platform-reviewed fix.

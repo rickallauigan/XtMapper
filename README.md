@@ -222,4 +222,12 @@ Coordinate Capture and Phase 2 controller customization are documented in
 [the capture workflow](docs/coordinate-capture.md). Quick Buy remains unbound
 until measured; Phase 2 device acceptance is pending.
 
+Versioned JSON/YAML profile files, disabled mappings and the safe import workflow
+are documented in [structured profiles](docs/structured-profiles.md). Phase 3
+is repository-only; physical deployment and acceptance remain separate gates.
+
+
+Product identity: [rebranding preparation and approval gates](docs/branding-preparation.md). Current app name, icons, packages and upstream credits remain unchanged.
+
+
 Engineering: [Contributing](CONTRIBUTING.md), [Security policy](SECURITY.md), and [build/CI/release checks](docs/engineering-quality.md).
