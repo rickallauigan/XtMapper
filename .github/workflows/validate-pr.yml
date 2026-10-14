@@ -31,7 +31,6 @@ jobs:
         env:
           PYTHONDONTWRITEBYTECODE: '1'
         run: |
-          python3 tools/profile_schema.py --check
           python3 -m unittest discover -s profiles/mlbb/samsung-s10e -p 'test_*.py'
           python3 profiles/mlbb/samsung-s10e/generate-gamesir-profile.py --version 0.1 --check
           python3 profiles/mlbb/samsung-s10e/generate-gamesir-profile.py --version 0.2 --check

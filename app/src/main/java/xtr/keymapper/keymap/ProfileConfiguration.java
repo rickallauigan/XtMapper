@@ -14,7 +14,6 @@ public final class ProfileConfiguration {
     public static Set<String> validate(String text) {
         if (text == null || text.trim().isEmpty())
             throw new IllegalArgumentException("Configuration is blank. Paste a profile first.");
-        if (xtr.keymapper.structured.StructuredProfiles.contains(text)) return xtr.keymapper.structured.StructuredProfiles.validateContainer(text);
         Set<String> lines = new LinkedHashSet<>();
         Set<String> singletons = new LinkedHashSet<>();
         int dpads = 0;

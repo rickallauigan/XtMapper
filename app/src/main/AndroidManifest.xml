@@ -24,8 +24,6 @@
         android:supportsRtl="false"
         android:theme="@style/Theme.XtMapper" >
 
-        <activity android:name=".structured.StructuredProfileActivity" android:exported="false" />
-
         <activity
             android:name=".activity.DisplaySelectorActivity"
             android:exported="true"

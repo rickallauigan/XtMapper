@@ -225,3 +225,6 @@ until measured; Phase 2 device acceptance is pending.
 Versioned JSON/YAML profile files, disabled mappings and the safe import workflow
 are documented in [structured profiles](docs/structured-profiles.md). Phase 3
 is repository-only; physical deployment and acceptance remain separate gates.
+
+
+Product identity: [rebranding preparation and approval gates](docs/branding-preparation.md). Current app name, icons, packages and upstream credits remain unchanged.

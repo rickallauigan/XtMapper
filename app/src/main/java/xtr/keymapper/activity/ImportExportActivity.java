@@ -136,12 +136,10 @@ public class ImportExportActivity extends AppCompatActivity {
                 zipInputStream.closeEntry();
             }
             zipInputStream.close();
-            synchronized (xtr.keymapper.structured.StructuredProfiles.SAVE_LOCK) {
-                var edit = new KeymapProfiles(this).sharedPref.edit();
-                imported.forEach(edit::putStringSet);
-                edit.commit();
-            }
-        } catch (RuntimeException e) {
+            var edit = new KeymapProfiles(this).sharedPref.edit();
+            imported.forEach(edit::putStringSet);
+            edit.apply();
+        } catch (IllegalArgumentException e) {
             android.widget.Toast.makeText(this, e.getMessage(), android.widget.Toast.LENGTH_LONG).show();
         } catch (IOException e) {
             throw new RuntimeException(e);

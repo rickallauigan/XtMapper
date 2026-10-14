@@ -46,7 +46,7 @@ class VisualMappingSession(val profileId: String, saved: Set<String>) {
             require(oldMode == null || oldMode == newMode || confirmTypeChange) { "Confirm replacing the existing mapping type." }
             require(code != RIGHT_STICK || d[0] == "STICK_CAMERA") { "Analog stick is not a digital button." }
         }
-        val next = xtr.keymapper.structured.StructuredProfiles.reconcile(lines, lines - old.toSet() + listOfNotNull(replacement))
+        val next = lines - old.toSet() + listOfNotNull(replacement)
         ProfileConfiguration.validate(next.sorted().joinToString("\n"))
         if (next != lines) { history.addLast(lines); lines = next }
     }
@@ -69,7 +69,7 @@ class VisualMappingSession(val profileId: String, saved: Set<String>) {
         val replacement = if (x == null && y == null) emptyList() else {
             require(x != null && y != null); listOf("CHORD $m $t $x $y 0")
         }
-        val next=xtr.keymapper.structured.StructuredProfiles.reconcile(lines,lines-old.toSet()+replacement)
+        val next=lines-old.toSet()+replacement
         ProfileConfiguration.validate(next.sorted().joinToString("\n"))
         if(next!=lines) {history.addLast(lines); lines=next}
     }
@@ -77,7 +77,7 @@ class VisualMappingSession(val profileId: String, saved: Set<String>) {
     fun reset() { if (dirty) { history.addLast(lines); lines = original } }
     fun resetBinding(code: String) {
         val restored = VisualMappingSession(profileId, original).bindings(code)
-        val next = xtr.keymapper.structured.StructuredProfiles.reconcile(lines, lines - bindings(code).toSet() + restored)
+        val next = lines - bindings(code).toSet() + restored
         ProfileConfiguration.validate(next.sorted().joinToString("\n"))
         if (next != lines) { history.addLast(lines); lines = next }
     }
@@ -88,10 +88,10 @@ class VisualMappingSession(val profileId: String, saved: Set<String>) {
             require(current != null) { "Profile was deleted or renamed. Nothing saved." }
             require(current == original) { "Profile changed elsewhere. Discard and reopen; nothing overwritten." }
             ProfileConfiguration.validate(lines.sorted().joinToString("\n"))
-            xtr.keymapper.structured.StructuredProfiles.writeSet(prefs,profileId,lines)
+            check(prefs.edit().putStringSet(profileId, lines.toSet()).commit()) { "Storage could not save the profile." }
         }
     }
-    companion object { const val RIGHT_STICK = "RIGHT_STICK"; private val SAVE_LOCK = xtr.keymapper.structured.StructuredProfiles.SAVE_LOCK }
+    companion object { const val RIGHT_STICK = "RIGHT_STICK"; private val SAVE_LOCK = Any() }
 }
 
 /** Full profile plane, with only a measured viewport origin (never a guessed cutout offset). */

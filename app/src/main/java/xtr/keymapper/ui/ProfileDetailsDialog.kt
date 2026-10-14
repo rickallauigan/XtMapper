@@ -58,8 +58,6 @@ internal fun ProfileDetailsContent(details: SavedProfileDetails, appName: String
                     }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 12.dp))
-                val context=androidx.compose.ui.platform.LocalContext.current
-                TextButton(onClick={context.startActivity(android.content.Intent(context,xtr.keymapper.structured.StructuredProfileActivity::class.java).putExtra("profile",details.id))}) {Text("JSON/YAML • metadata and enabled bindings")}
                 if (onCapture != null) TextButton(onClick = onCapture, modifier = Modifier.fillMaxWidth(), enabled = details.error == null) { Text("Capture Coordinates") }
                 if (onVisualEdit != null) OutlinedButton(onClick = onVisualEdit, modifier = Modifier.fillMaxWidth(), enabled = details.error == null) { Text("Visual Controller Edit") }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {

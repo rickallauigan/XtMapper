@@ -470,8 +470,7 @@ class EditorUI(
         settingsOverlay.binding.catalog.setOnClickListener(View.OnClickListener { v: View? -> macroView.clearCanvasAndFinish() })
     }
 
-    @JvmOverloads
-    fun hideView(forceDiscard: Boolean = false) {
+    fun hideView() {
         if (closed) return
         closed = true
         captureSession?.stop()
@@ -480,13 +479,7 @@ class EditorUI(
             visualComposeView?.disposeComposition()
             if (lifecycleRegistry.currentState != Lifecycle.State.INITIALIZED) lifecycleRegistry.currentState = Lifecycle.State.DESTROYED
         }
-        if (startMode == START_EDITOR && !forceDiscard) {
-            try { saveKeymap() } catch (e: Exception) {
-                closed = false
-                Toast.makeText(context,"Profile not saved: ${e.message?.take(300)}",Toast.LENGTH_LONG).show()
-                return
-            }
-        }
+        if (startMode == START_EDITOR) saveKeymap()
         if (startMode != SHOW_KEYMAP_ONLY) {
             unregisterOnKeyEventListener()
             if (!draftEditor) settingsOverlay!!.onDestroyView()

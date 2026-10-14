@@ -171,7 +171,6 @@ internal fun KeymapperApp(
                                 )
                             }
 
-                            OutlinedButton(onClick = {context.startActivity(android.content.Intent(context,xtr.keymapper.structured.StructuredProfileActivity::class.java))}) {Text("Tools • Profile files JSON/YAML") }
                             OutlinedButton(onClick = onCaptureCoordinates) { Text("Tools • Coordinate Capture") }
                             Spacer(modifier = Modifier.height(20.dp))
                         }

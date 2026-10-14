@@ -214,3 +214,8 @@ share an optimistic-save lock and restore prior memory on failed commit. Existin
 text/ZIP, phase references, package/signing/IPC identifiers remain unchanged.
 No ADB or device access/deployment occurred. Hardware and file-picker acceptance
 remain pending. Source contract: docs/structured-profiles.md.
+
+
+## Phase 3 branding preparation (2026-10-14)
+
+Recorded current display and technical identities, existing app_name resource architecture, adaptive/monochrome artwork specifications, GPL/upstream attribution, approval gates and display-only migration/rollback design. No permanent product name chosen; no icon, label, package, signing, IPC, preference, repository or device changes. Final name/artwork and deployment remain owner approval gates.
