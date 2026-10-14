@@ -178,6 +178,7 @@ public final class ControllerDeviceMonitor {
         }
         if (owner == null) owner = path;
         if (!path.equals(owner)) return true; // One active physical controller owns this profile.
+        xtr.keymapper.server.InputDiagnostics.controller(line);
         String[] parts = line.trim().split("\\s+");
         if (parts.length < 3) return true;
         String type = parts[0], code = ControllerBindings.canonical(parts[1]), value = parts[2];

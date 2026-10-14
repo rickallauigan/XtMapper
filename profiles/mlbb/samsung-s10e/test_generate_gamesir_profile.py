@@ -45,5 +45,56 @@ class ProfileTest(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         generator.generate()
 
+class RearLevelingTest(unittest.TestCase):
+    def test_named_measured_actions_keep_rear_identity_and_legacy_profiles(self):
+        # These are synthetic validation coordinates, never deployment anchors.
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'mlbb-kbm-v0.1.txt').write_text((ROOT / 'mlbb-kbm-v0.1.txt').read_text())
+            with patch.object(generator, 'ROOT', root):
+                baseline = generator.generate()
+                with self.assertRaises(ValueError):
+                    generator.generate(rear_leveling=True)
+                extras = {'actions': {
+                    'skill1_level_up': {'x': 100, 'y': 200, 'measurement': 'synthetic test'},
+                    'skill2_level_up': {'x': 300, 'y': 400, 'measurement': 'synthetic test'}}}
+                path = root / 'mlbb-extra-anchors.json'
+                path.write_text(json.dumps(extras))
+                generated = generator.generate(rear_leveling=True)
+                self.assertEqual(baseline, generator.generate())
+                self.assertTrue(generated.startswith(baseline))
+                self.assertIn('BTN_THUMBR 100 200 0', generated)
+                self.assertIn('BTN_THUMBL 300 400 0', generated)
+                self.assertEqual(1, generated.count('BTN_THUMBR'))
+                self.assertEqual(1, generated.count('BTN_THUMBL'))
+                with self.assertRaises(ValueError):
+                    generator.generate('0.1', rear_leveling=True)
+                extras['actions']['skill2_level_up'] = extras['actions']['skill1_level_up'].copy()
+                path.write_text(json.dumps(extras))
+                with self.assertRaises(ValueError):
+                    generator.generate(rear_leveling=True)
+
+    def test_swapped_chord_positions_and_missing_measurements_rejected(self):
+        with tempfile.TemporaryDirectory() as directory:
+            root = Path(directory)
+            (root / 'mlbb-kbm-v0.1.txt').write_text((ROOT / 'mlbb-kbm-v0.1.txt').read_text())
+            extras = {'actions': {
+                'skill1_level_up': {'x': 100, 'y': 200, 'measurement': 'synthetic test'},
+                'skill2_level_up': {'x': 300, 'y': 400, 'measurement': 'synthetic test'}},
+                'chords': [{'modifier': 'BTN_SELECT', 'trigger': 'BTN_TR',
+                    'x': 300, 'y': 400, 'measurement': 'synthetic test'}]}
+            with patch.object(generator, 'ROOT', root):
+                path = root / 'mlbb-extra-anchors.json'
+                path.write_text(json.dumps(extras))
+                with self.assertRaises(ValueError):
+                    generator.generate(rear_leveling=True)
+                extras['chords'][0].update(x=100, y=200)
+                path.write_text(json.dumps(extras))
+                self.assertIn('CHORD BTN_SELECT BTN_TR 100 200 0', generator.generate(rear_leveling=True))
+                del extras['actions']['skill1_level_up']['measurement']
+                path.write_text(json.dumps(extras))
+                with self.assertRaises(ValueError):
+                    generator.generate(rear_leveling=True)
+
 if __name__ == '__main__':
     unittest.main()
