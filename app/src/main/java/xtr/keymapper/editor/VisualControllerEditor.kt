@@ -50,10 +50,14 @@ fun VisualControllerEditor(session: VisualMappingSession, overlay: Boolean, read
     var coordinatesDialog by remember { mutableStateOf(false) }
     var coordinateX by remember { mutableStateOf("") }
     var coordinateY by remember { mutableStateOf("") }
+    var targetPicker by remember { mutableStateOf(false) }
+    var targetProposal by remember { mutableStateOf<CapturedTarget?>(null) }
+    var chordEditor by remember { mutableStateOf(false) }
     var rearVerified by remember { mutableStateOf(false) }
     var size by remember { mutableStateOf(IntSize.Zero) }
     val profile = remember(revision) { session.profile }
-    val rows = remember(revision) { ProfileMappingSummary.from(profile).rows }
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val rows = remember(revision) { ProfileMappingSummary.from(profile, try { CapturedTargetStore(context).read() } catch (_: Exception) { emptyList() }).rows }
     fun load(code: String) {
         selected = code; error = null; placing = false; advanced = false
         val old = session.bindings(code).singleOrNull()?.split(Regex("\\s+"))
@@ -69,7 +73,7 @@ fun VisualControllerEditor(session: VisualMappingSession, overlay: Boolean, read
                 xSensitivity = old[3]; ySensitivity = old[4]; deadZone = old[5]
             }
             code -> {
-                point = old[1].toFloat() to old[2].toFloat()
+                point = (old[1].toFloat() + old[3].toFloat()) to (old[2].toFloat() + old[3].toFloat())
                 if (old.size == 5) { mode = "Repeat"; repeat = old[4] }
             }
         }
@@ -79,7 +83,7 @@ fun VisualControllerEditor(session: VisualMappingSession, overlay: Boolean, read
         val code = selected ?: return
         val p = point ?: run { error = "Place a target on the actual screen first."; return }
         val previous = session.bindings(code).singleOrNull()?.split(Regex("\\s+"))
-        val offset = if (ControllerBindings.canonical(previous?.firstOrNull()) == code) previous?.getOrNull(3) ?: "0" else "0"
+        val offset = "0" // Point is the effective center, including any legacy offset on load.
         val line = when (mode) {
             "Hold & aim" -> "STICK_AIM $code ${p.first} ${p.second} $radius $xSensitivity $ySensitivity $deadZone ${if (invert) 1 else 0}"
             "Camera" -> "STICK_CAMERA ${p.first} ${p.second} $xSensitivity $ySensitivity $deadZone"
@@ -139,6 +143,7 @@ fun VisualControllerEditor(session: VisualMappingSession, overlay: Boolean, read
                         if (!overlay) Text("Fullscreen fallback: open the game behind the editor using overlay permission for live HUD measurement. Do not place unseen game targets.", color = MaterialTheme.colorScheme.secondary)
                         Text("Profile plane ${profile.xRes} × ${profile.yRes}. Recalibrate if the HUD or orientation changes.", style = MaterialTheme.typography.bodySmall)
                         ControllerDiagram(session, selected, ::load)
+                        TextButton(onClick = { chordEditor = true }) { Text("Edit controller chords") }
                         Text(ControllerPresentation.rearNotice, style = MaterialTheme.typography.bodySmall)
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Checkbox(rearVerified, { rearVerified = it })
@@ -195,6 +200,7 @@ fun VisualControllerEditor(session: VisualMappingSession, overlay: Boolean, read
                                     Button(onClick = { focus.clearFocus(); keyboard?.hide(); onPlaceTarget(); placing = true }, enabled = ready && overlay) { Text("Place Target") }
                                     OutlinedButton(onClick = { apply() }, enabled = point != null) { Text("Apply to draft") }
                                 }
+                                OutlinedButton(onClick = { targetPicker = true }, enabled = code != VisualMappingSession.RIGHT_STICK) { Text("Saved target") }
                                 if (point != null) {
                                     TextButton(onClick = { coordinateX = point!!.first.toString(); coordinateY = point!!.second.toString(); coordinatesDialog = true }) { Text("Advanced coordinates") }
                                     Row {
@@ -223,6 +229,16 @@ fun VisualControllerEditor(session: VisualMappingSession, overlay: Boolean, read
                     }
                 }
             }
+            if (targetPicker) CapturedTargetPicker(profile.xRes, profile.yRes, profile.packageName,
+                onSelect = { targetProposal = it; targetPicker = false }, onClose = { targetPicker = false })
+            targetProposal?.let { target -> AlertDialog(onDismissRequest = { targetProposal = null },
+                title = { Text("Replace with ${target.name}?") },
+                text = { Text("${selected?.let { session.bindings(it).joinToString("\n") } ?: "Unmapped"}\n→ ${selected?.let { session.targetReplacement(it, target) }}\nAim tuning is retained for an aimed skill; fixed touches have no repeat. Other mappings stay unchanged. Save Profile commits this draft.") },
+                confirmButton = { TextButton(onClick = {
+                    try { selected?.let { session.applyTarget(it, target, true); revision++; load(it) }; targetProposal = null }
+                    catch (e: Exception) { error = e.message; targetProposal = null }
+                }) { Text("Replace in draft") } }, dismissButton = { TextButton(onClick = { targetProposal = null }) { Text("Cancel") } }) }
+            if (chordEditor) ControllerChordEditor(session, onChanged = { revision++; selected?.let(::load) }, onClose = { chordEditor = false })
             if (coordinatesDialog) AlertDialog(onDismissRequest = { coordinatesDialog = false },
                 title = { Text("Measured target coordinates") },
                 text = { Column {

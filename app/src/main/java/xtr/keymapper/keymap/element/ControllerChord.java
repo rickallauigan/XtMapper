@@ -20,7 +20,7 @@ public final class ControllerChord extends KeymapProfileElement {
         modifier = in.readString(); trigger = in.readString();
         x = in.readFloat(); y = in.readFloat(); offset = in.readFloat();
     }
-    @Override public void scale(float sx, float sy) { x *= sx; y *= sy; }
+    @Override public void scale(float sx, float sy) { x = (x + offset) * sx - offset; y = (y + offset) * sy - offset; }
     public String getData() { return "CHORD " + modifier + " " + trigger + " " + x + " " + y + " " + offset; }
     public String label() { return ControllerBindings.label(modifier) + " + " + ControllerBindings.label(trigger); }
     @Override public void writeToParcel(Parcel dest, int flags) {

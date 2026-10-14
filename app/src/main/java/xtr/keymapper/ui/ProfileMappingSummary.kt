@@ -12,7 +12,7 @@ data class MappingRow(val id: String, val input: String, val action: String, val
 data class ProfileMappingSummary(val rows: List<MappingRow>) {
     val count get() = rows.size
     companion object {
-        fun from(profile: KeymapProfile): ProfileMappingSummary {
+        fun from(profile: KeymapProfile, targets: List<xtr.keymapper.editor.CapturedTarget> = emptyList()): ProfileMappingSummary {
             val rows = mutableListOf<MappingRow>()
             fun label(code: String?) = when (code) {
                 null -> "Unknown input"
@@ -25,7 +25,11 @@ data class ProfileMappingSummary(val rows: List<MappingRow>) {
             fun add(id: String, input: String, action: String, category: String, params: String) {
                 rows += MappingRow(id, input, action, category, params)
             }
-            profile.keys.forEach { k -> add("fixed:${k.code}", label(k.code), if (k.repeatIntervalMs > 0) "Hold / repeat" else "Hold touch", group(k.code),
+            fun named(code: String, x: Float, y: Float, fallback: String): String {
+                val matches = targets.filter { it.input == code && (it.gamePackage.isNullOrEmpty() || it.gamePackage == profile.packageName) && it.width == profile.xRes && it.height == profile.yRes && it.x == x && it.y == y }
+                return matches.singleOrNull()?.let { "${it.name} • $fallback" } ?: fallback
+            }
+            profile.keys.forEach { k -> add("fixed:${k.code}", label(k.code), named(k.code, k.x+k.offset, k.y+k.offset, if (k.repeatIntervalMs > 0) "Hold / repeat" else "Touch"), group(k.code),
                 "${at(k.x, k.y)} • offset ${k.offset}" + if (k.repeatIntervalMs > 0) " • ${k.repeatIntervalMs} ms" else "") }
             profile.aimKeys.forEach { k -> add("aim:${k.code}", label(k.code), "Hold & aim", group(k.code),
                 "${at(k.x, k.y)} • radius ${k.radius} • sensitivity ${k.xSensitivity}/${k.ySensitivity}" +
@@ -71,7 +75,7 @@ object ProfileDetailsReader {
                     "${g.name} • ${if (online) "connected" else "disconnected"} • preferred for this app"
                 }
             }
-            SavedProfileDetails(id, profile.packageName, !profile.disabled, ProfileMappingSummary.from(profile), "${profile.xRes} × ${profile.yRes}", devices = associations)
+            SavedProfileDetails(id, profile.packageName, !profile.disabled, ProfileMappingSummary.from(profile, try { xtr.keymapper.editor.CapturedTargetStore(context).read() } catch (_: Exception) { emptyList() }), "${profile.xRes} × ${profile.yRes}", devices = associations)
         } catch (e: IllegalArgumentException) {
             SavedProfileDetails(id, packageName, "ENABLED" in lines, ProfileMappingSummary(emptyList()), "Unknown", e.message ?: "Invalid saved profile")
         }

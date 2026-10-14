@@ -38,7 +38,7 @@ APK SHA-256 `743a7b971497cec7f14e7eb3b58704869e54d5ddda33c721bd9780a36698ba87`.
 | LB | BTN_TL | Ultimate + right-stick aim | KBM R center |
 | LT | BTN_TL2 | Basic Attack; hold to repeat | KBM left-click anchor, 150 ms |
 | Right stick | ABS_RX / ABS_RY | Aim held skill/spell; otherwise camera pan | Absolute aim / camera velocity |
-| D-pad up | ABS_HAT0Y = -1 → DPAD_UP | Attack Turret | Configurable; no measured anchor |
+| D-pad up | ABS_HAT0Y = -1 → DPAD_UP | Quick Buy (Phase 2 request) | Pending measured anchor; legacy fixtures unchanged |
 | D-pad down | ABS_HAT0Y = +1 → DPAD_DOWN | Attack Minion | Configurable; no measured anchor |
 | D-pad left | ABS_HAT0X = -1 → DPAD_LEFT | Shop / secondary utility | Configurable; no measured anchor |
 | D-pad right | ABS_HAT0X = +1 → DPAD_RIGHT | Utility | Configurable |
@@ -196,11 +196,14 @@ requires separate testing; Revitalize cannot validate it.
 
 ## SELECT skill-leveling and D-pad calibration (#9)
 
-Generic chord support is available. The current calibration has **no measured
-skill-level-up (+), Shop, Quick Buy, Turret, Minion or equipment anchors**.
-They remain unbound in v0.2. SELECT is reserved for the leveling layer;
-START retains native chat. Intended chords are SELECT+RB/RT/LB for Skill 1/2/3.
-D-pad Left/Right are reserved for Shop/Quick Buy, Up/Down for Turret/Minion.
+Generic chord support is merged. Historical v0.2 left all upgrade/utility anchors
+unbound. Phase 1 recovered and verified v0.3 Skill 1/2/Ultimate (+) centers;
+tuned v0.3 uses standalone SELECT for Ultimate (+), not a modifier. Phase 2
+provides a separate opt-in SELECT+RB/RT/LB variation without rewriting those
+references. The authoritative D-pad Up action is **Quick Buy**, still unbound
+pending measurement. Down/Left/Right remain unchanged. START retains native chat.
+See [Coordinate Capture](../../../docs/coordinate-capture.md) for the full safe
+capture, target-library and candidate workflow.
 
 After physically capturing each target center on this exact 2280×1080 HUD,
 create `mlbb-extra-anchors.json` alongside the generator. Use a `bindings`
@@ -230,3 +233,13 @@ multiple shoulders, movement + LT attack + leveling, camera/aim coexistence,
 pause/reload/stop, SYN loss where practical and USB reconnect. Check no base
 skill cast or stuck touch occurs. Automated synthetic targets validate the
 runtime; they are not S10e HUD measurements or gameplay acceptance.
+
+## Phase 2 candidates (repository implementation; physical validation pending)
+
+`mlbb-gamesir-g8-phase2.txt` preserves the accepted tuned v0.3 actions exactly.
+`mlbb-gamesir-g8-phase2-select-chords.txt` explicitly replaces standalone SELECT
+with three measured upgrade chords. Quick Buy is unbound in both until captured;
+no coordinate is guessed. Use `generate-gamesir-profile.py --phase2 --output ...`
+and optional `--select-chords` / `--quick-buy-target` measurement record. This
+never changes an installed association. JSON/YAML copied snippets are not profiles
+until #24 adds structured import/export. No Phase 2 APK has been installed.

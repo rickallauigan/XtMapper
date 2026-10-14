@@ -87,6 +87,8 @@ internal fun KeymapperApp(
     onLaunchProfile: (GameProfile) -> Unit = {},
     onEditProfile: (GameProfile) -> Unit = {},
     onVisualEditProfile: (GameProfile) -> Unit = {},
+    onCaptureProfile: (GameProfile) -> Unit = {},
+    onCaptureCoordinates: () -> Unit = {},
     onRenameProfile: (GameProfile) -> Unit = {},
     onChangeProfileApp: (GameProfile) -> Unit = {},
     onDeleteProfile: (GameProfile) -> Unit = {},
@@ -169,6 +171,7 @@ internal fun KeymapperApp(
                                 )
                             }
 
+                            OutlinedButton(onClick = onCaptureCoordinates) { Text("Tools • Coordinate Capture") }
                             Spacer(modifier = Modifier.height(20.dp))
                         }
 
@@ -197,7 +200,8 @@ internal fun KeymapperApp(
                     onDismiss = { detailsProfileId = null },
                     onSelect = { onSelectProfile(detailsCard); detailsProfileId = null },
                     onEdit = { onEditProfile(detailsCard); detailsProfileId = null }, icon = detailsCard.icon,
-                    onVisualEdit = { onVisualEditProfile(detailsCard); detailsProfileId = null })
+                    onVisualEdit = { onVisualEditProfile(detailsCard); detailsProfileId = null },
+                    onCapture = { onCaptureProfile(detailsCard); detailsProfileId = null })
             }
 
             AddProfileFAB(
@@ -329,6 +333,15 @@ private fun GameKeyMapperActivityContent(activity: MainActivity) {
             activity.startActivity(android.content.Intent(activity, xtr.keymapper.editor.EditorActivity::class.java)
                 .putExtra(xtr.keymapper.editor.EditorActivity.PROFILE_NAME, it.id)
                 .putExtra(xtr.keymapper.editor.EditorActivity.VISUAL, true))
+        },
+        onCaptureCoordinates = {
+            activity.startActivity(android.content.Intent(activity, xtr.keymapper.editor.EditorActivity::class.java)
+                .putExtra(xtr.keymapper.editor.EditorActivity.CAPTURE, true))
+        },
+        onCaptureProfile = {
+            activity.startActivity(android.content.Intent(activity, xtr.keymapper.editor.EditorActivity::class.java)
+                .putExtra(xtr.keymapper.editor.EditorActivity.PROFILE_NAME, it.id)
+                .putExtra(xtr.keymapper.editor.EditorActivity.CAPTURE, true))
         },
         onRenameProfile = {
             activity.renameProfileFromCompose(it.profileNameForActivity()) { refresh() }

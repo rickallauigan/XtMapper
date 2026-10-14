@@ -19,16 +19,16 @@ import androidx.compose.ui.window.DialogProperties
 
 @Composable
 fun ProfileDetailsDialog(details: SavedProfileDetails, appName: String, selected: Boolean,
-    onDismiss: () -> Unit, onSelect: () -> Unit, onEdit: () -> Unit, icon: android.graphics.drawable.Drawable? = null, onVisualEdit: (() -> Unit)? = null) {
+    onDismiss: () -> Unit, onSelect: () -> Unit, onEdit: () -> Unit, icon: android.graphics.drawable.Drawable? = null, onVisualEdit: (() -> Unit)? = null, onCapture: (() -> Unit)? = null) {
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false)) {
-        ProfileDetailsContent(details, appName, selected, onDismiss, onSelect, onEdit, icon, onVisualEdit)
+        ProfileDetailsContent(details, appName, selected, onDismiss, onSelect, onEdit, icon, onVisualEdit, onCapture)
     }
 }
 
 @Composable
 internal fun ProfileDetailsContent(details: SavedProfileDetails, appName: String, selected: Boolean,
     onDismiss: () -> Unit, onSelect: () -> Unit, onEdit: () -> Unit,
-    icon: android.graphics.drawable.Drawable? = null, onVisualEdit: (() -> Unit)? = null) {
+    icon: android.graphics.drawable.Drawable? = null, onVisualEdit: (() -> Unit)? = null, onCapture: (() -> Unit)? = null) {
         Surface(Modifier.widthIn(max = 640.dp).fillMaxWidth().fillMaxHeight(.9f).padding(12.dp),
             shape = MaterialTheme.shapes.extraLarge, tonalElevation = 8.dp) {
             Column(Modifier.padding(20.dp)) {
@@ -58,6 +58,7 @@ internal fun ProfileDetailsContent(details: SavedProfileDetails, appName: String
                     }
                 }
                 HorizontalDivider(Modifier.padding(vertical = 12.dp))
+                if (onCapture != null) TextButton(onClick = onCapture, modifier = Modifier.fillMaxWidth(), enabled = details.error == null) { Text("Capture Coordinates") }
                 if (onVisualEdit != null) OutlinedButton(onClick = onVisualEdit, modifier = Modifier.fillMaxWidth(), enabled = details.error == null) { Text("Visual Controller Edit") }
                 Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     OutlinedButton(onClick = onEdit, modifier = Modifier.weight(1f), enabled = details.error == null) { Text("Edit Keymap") }
