@@ -110,7 +110,7 @@ public class EditorActivity extends Activity {
     @Override
     protected void onDestroy() {
         super.onDestroy();
-        if (editor != null) editor.hideView();
+        if (editor != null) editor.hideView(true);
         editor = null;
     }
 }
