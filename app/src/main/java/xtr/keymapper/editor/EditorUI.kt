@@ -157,6 +157,16 @@ class EditorUI(
         if (draftEditor) checkVisualPause(service!!, 0)
     }
 
+    fun onCaptureDisconnected() {
+        if (startMode != COORDINATE_CAPTURE) return
+        visualReady = false
+        // An initial unavailable connection leaves the manual fallback disabled.
+        if (mService == null) return
+        // Do not resume/reload a stale or disconnected binder during teardown.
+        mService = null
+        hideView()
+    }
+
     private fun checkVisualPause(service: IRemoteService, attempt: Int) {
         mHandler.post {
             if (closed || mService !== service) return@post

@@ -54,7 +54,15 @@ class CapturedTargetStore(context: Context) {
         require(next.size <= 200 && next.map { it.id }.distinct().size == next.size) { "Too many or duplicate target identities" }
         synchronized(LOCK) {
             require(read() == expected) { "Target library changed elsewhere. Reopen; nothing overwritten." }
-            check(prefs.edit().putString("targets", JSONArray().also { a -> next.forEach { a.put(it.json()) } }.toString()).commit()) { "Cannot save targets" }
+            val prior = prefs.getString("targets", null)
+            val encoded = JSONArray().also { a -> next.forEach { a.put(it.json()) } }.toString()
+            if (!prefs.edit().putString("targets", encoded).commit()) {
+                // commit() may already have changed memory even when disk persistence failed.
+                val rollback = prefs.edit()
+                if (prior == null) rollback.remove("targets") else rollback.putString("targets", prior)
+                if (!rollback.commit()) error("Target save failed; rollback persistence also failed. Verify storage before retrying.")
+                error("Target save failed; prior state restored.")
+            }
         }
     }
     private fun decode(text: String): List<CapturedTarget> {

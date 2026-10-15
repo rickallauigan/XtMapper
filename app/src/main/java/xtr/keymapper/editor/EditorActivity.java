@@ -89,7 +89,9 @@ public class EditorActivity extends Activity {
                 } catch (RemoteException e) {
                     Log.e("editorActivity", e.getMessage(), e);
                 }
-            else if (!getIntent().getBooleanExtra(CAPTURE, false)) {
+            else if (getIntent().getBooleanExtra(CAPTURE, false)) {
+                editor.onCaptureDisconnected();
+            } else {
                 MaterialAlertDialogBuilder builder = new MaterialAlertDialogBuilder(this);
 
                 builder.setMessage(R.string.dialog_alert_editor)

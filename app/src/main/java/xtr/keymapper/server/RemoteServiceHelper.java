@@ -25,6 +25,7 @@ public class RemoteServiceHelper {
 
     public static void pauseKeymap(Context context){
         getInstance(context, service -> {
+            if (service == null) return;
             try {
                 service.pauseMouse();
             } catch (RemoteException e) {
@@ -35,6 +36,7 @@ public class RemoteServiceHelper {
 
     public static void resumeKeymap(Context context){
         RemoteServiceHelper.getInstance(context, service -> {
+            if (service == null) return;
             try {
                 service.resumeMouse();
             } catch (RemoteException e) {
@@ -63,6 +65,7 @@ public class RemoteServiceHelper {
     }
 
     public interface RootRemoteServiceCallback {
+        // Null reports an unavailable service or a later disconnection.
         void onConnection(IRemoteService service);
     }
     public static class RemoteServiceConnection implements ServiceConnection {
@@ -77,7 +80,7 @@ public class RemoteServiceHelper {
 
         @Override
         public void onServiceDisconnected(ComponentName name) {
-
+            cb.onConnection(null);
         }
     }
 
