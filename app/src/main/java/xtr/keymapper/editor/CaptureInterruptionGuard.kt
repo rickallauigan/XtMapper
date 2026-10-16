@@ -18,6 +18,7 @@ internal class CaptureInterruptionGuard(private val context: Context, private va
     private val isCapturing: () -> Boolean, private val close: () -> Unit) {
     private var disposed = false
     private var hadRuntime = false
+    private var hadConnection = false
     private var sawFocus = false
     private val manager = context.getSystemService(InputManager::class.java)
     private val controllerIds = InputDevice.getDeviceIds().filter { id ->
@@ -45,7 +46,11 @@ internal class CaptureInterruptionGuard(private val context: Context, private va
             if (disposed) return
             if (overlay && !Settings.canDrawOverlays(context)) { interrupt(); return }
             try {
-                remote()?.let { service ->
+                val service = remote()
+                if (service == null) {
+                    if (hadConnection || isCapturing()) { interrupt(); return }
+                } else {
+                    hadConnection = true
                     val active = service.isActive
                     if (hadRuntime && !active || !service.isMappingPaused) { interrupt(); return }
                     hadRuntime = hadRuntime || active
@@ -64,7 +69,7 @@ internal class CaptureInterruptionGuard(private val context: Context, private va
         // Initial pause acknowledgement may be asynchronous; allow EditorUI to obtain it first.
         handler.postDelayed(poll, 2200)
     }
-    fun connection(active: Boolean) { hadRuntime = hadRuntime || active }
+    fun connection(active: Boolean) { hadConnection = true; hadRuntime = hadRuntime || active }
     fun interrupt() { if (!disposed) { dispose(); close() } }
     fun dispose() {
         if (disposed) return

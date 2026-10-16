@@ -37,7 +37,7 @@ public class EditorService extends Service {
 
             RemoteServiceHelper.getInstance(EditorService.this, remoteService -> {
                 try {
-                    if (editor != null) {
+                    if (editor != null && remoteService != null) {
                         editor.registerOnKeyEventListener(remoteService);
                     }
                 } catch (RemoteException e) {
